@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\User;
 use App\Services\SteamAchievementClient;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -37,3 +40,43 @@ Artisan::command('steam:sync-achievements {--limit=0 : Maximum games to check, 0
 
     return 0;
 })->purpose('Sync Steam achievement data for unsynced games');
+
+Artisan::command('steam:refresh-active-achievements {--games=20 : Maximum games to refresh per user}', function (SteamAchievementClient $steam): int {
+    $gamesPerUser = max(1, min((int) $this->option('games'), 50));
+    $totalUsers = 0;
+    $totalSynced = 0;
+    $totalFailed = 0;
+
+    User::query()
+        ->whereNotNull('steam_id')
+        ->orderBy('id')
+        ->each(function (User $user) use ($steam, $gamesPerUser, &$totalUsers, &$totalSynced, &$totalFailed): void {
+            Auth::guard()->setUser($user);
+            $totalUsers++;
+
+            try {
+                $steam->syncLibrary();
+                $initial = $steam->syncAchievementBatch($gamesPerUser);
+                $result = $steam->refreshActiveAchievementBatch($gamesPerUser);
+
+                $totalSynced += $initial['synced'] + $result['synced'];
+                $totalFailed += $initial['failed'] + $result['failed'];
+
+                $this->info("{$user->name}: synced {$initial['synced']} new, refreshed {$result['synced']} active, ".($initial['failed'] + $result['failed']).' failed.');
+            } catch (Throwable $exception) {
+                $totalFailed++;
+                $this->warn("{$user->name}: {$exception->getMessage()}");
+            } finally {
+                Auth::guard()->forgetUser();
+            }
+        });
+
+    $this->info("Done. Checked {$totalUsers} users, refreshed {$totalSynced} games, {$totalFailed} failed.");
+
+    return 0;
+})->purpose('Refresh likely-active Steam achievement data for every tracker user');
+
+Schedule::command('steam:refresh-active-achievements --games=20')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();

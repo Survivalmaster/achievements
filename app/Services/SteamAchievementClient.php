@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Collection;
 use RuntimeException;
 use Throwable;
 
@@ -146,6 +147,58 @@ class SteamAchievementClient
             'failed' => $failed,
             'remaining' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
         ];
+    }
+
+    /**
+     * @return array{attempted:int,synced:int,failed:int}
+     */
+    public function refreshActiveAchievementBatch(int $limit = 20): array
+    {
+        $limit = max(1, min($limit, 50));
+        $this->apiKey();
+        $this->steamId();
+
+        $games = $this->activeRefreshGames($limit);
+        $synced = 0;
+        $failed = 0;
+
+        foreach ($games as $game) {
+            try {
+                $this->syncAchievements($game);
+                $synced++;
+            } catch (Throwable) {
+                $failed++;
+            }
+        }
+
+        return [
+            'attempted' => $games->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+        ];
+    }
+
+    /**
+     * @return Collection<int, SteamGame>
+     */
+    private function activeRefreshGames(int $limit): Collection
+    {
+        return SteamGame::query()
+            ->where('user_id', Auth::id())
+            ->where('achievements_total', '>', 0)
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('is_current', true)
+                    ->orWhere('last_played_at', '>=', now()->subDays(30))
+                    ->orWhereColumn('achievements_unlocked', '<', 'achievements_total');
+            })
+            ->orderByRaw('case when achievements_synced_at is null then 0 else 1 end asc')
+            ->orderByDesc('is_current')
+            ->orderByDesc('last_played_at')
+            ->orderByRaw('case when achievements_total > 0 and achievements_unlocked < achievements_total then 0 else 1 end asc')
+            ->orderBy('achievements_synced_at')
+            ->limit($limit)
+            ->get();
     }
 
     public function playerSummary(string $steamId): array

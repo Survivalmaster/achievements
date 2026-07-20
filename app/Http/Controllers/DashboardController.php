@@ -207,6 +207,15 @@ class DashboardController extends Controller
     {
         try {
             $result = $steam->syncAchievementBatch(15);
+
+            if ($result['attempted'] === 0) {
+                $refresh = $steam->refreshActiveAchievementBatch(15);
+                $result['attempted'] = $refresh['attempted'];
+                $result['synced'] = $refresh['synced'];
+                $result['failed'] = $refresh['failed'];
+                $result['remaining'] = 0;
+                $result['refreshed'] = true;
+            }
         } catch (Throwable $exception) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => $this->message($exception)], 500);
@@ -223,7 +232,7 @@ class DashboardController extends Controller
             return back()->with('status', 'All games have achievement data checked.');
         }
 
-        $message = "Checked {$result['synced']} games";
+        $message = ($result['refreshed'] ?? false) ? "Refreshed {$result['synced']} games" : "Checked {$result['synced']} games";
 
         if ($result['failed'] > 0) {
             $message .= " ({$result['failed']} failed)";
