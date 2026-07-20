@@ -56,8 +56,8 @@ class SteamAchievementClient
             );
         }
 
-        if (! SteamGame::where('user_id', $userId)->where('is_current', true)->exists()) {
-            SteamGame::where('user_id', $userId)
+        if (! $this->steamGamesQuery()->where('is_current', true)->exists()) {
+            $this->steamGamesQuery()
                 ->orderByDesc('playtime_2weeks')
                 ->orderByDesc('playtime_forever')
                 ->first()
@@ -69,6 +69,10 @@ class SteamAchievementClient
 
     public function syncAchievements(SteamGame $game): SteamGame
     {
+        if ($game->platform_key !== SteamGame::PLATFORM_STEAM) {
+            throw new RuntimeException('This is not a Steam game.');
+        }
+
         $schema = $this->schema($game->appid);
         $schemaAchievements = $schema['achievements'] ?? [];
 
@@ -137,8 +141,7 @@ class SteamAchievementClient
         $this->apiKey();
         $this->steamId();
 
-        $games = SteamGame::query()
-            ->where('user_id', Auth::id())
+        $games = $this->steamGamesQuery()
             ->whereNull('achievements_synced_at')
             ->orderByDesc('is_current')
             ->orderByDesc('playtime_2weeks')
@@ -163,7 +166,7 @@ class SteamAchievementClient
             'attempted' => $games->count(),
             'synced' => $synced,
             'failed' => $failed,
-            'remaining' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
+            'remaining' => $this->steamGamesQuery()->whereNull('achievements_synced_at')->count(),
         ];
     }
 
@@ -242,8 +245,7 @@ class SteamAchievementClient
      */
     private function activeRefreshGames(int $limit): Collection
     {
-        return SteamGame::query()
-            ->where('user_id', Auth::id())
+        return $this->steamGamesQuery()
             ->where('achievements_total', '>', 0)
             ->where(function ($query): void {
                 $query->whereNull('achievements_synced_at')
@@ -262,12 +264,22 @@ class SteamAchievementClient
 
     private function refreshableGamesQuery()
     {
-        return SteamGame::query()
-            ->where('user_id', Auth::id())
+        return $this->steamGamesQuery()
             ->where(function ($query): void {
                 $query->where('achievements_total', '>', 0)
                     ->orWhereNull('achievements_synced_at');
             });
+    }
+
+    private function steamGamesQuery()
+    {
+        $query = SteamGame::query()->where('user_id', Auth::id());
+
+        if (Schema::hasColumn('steam_games', 'platform')) {
+            $query->where('platform', SteamGame::PLATFORM_STEAM);
+        }
+
+        return $query;
     }
 
     public function playerSummary(string $steamId): array

@@ -32,19 +32,19 @@
             <div class="sync-actions">
                 <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
                     @csrf
-                    <button type="submit">Sync Library</button>
+                    <button type="submit">Steam Library</button>
                 </form>
 
                 <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
                     @csrf
-                    <button type="submit">Sync Achievements</button>
+                    <button type="submit">Steam Achievements</button>
                     <span class="sr-only" data-sync-left>{{ $unsyncedGames }} left</span>
                 </form>
             </div>
 
             <form method="POST" action="{{ route('sync.refresh-all') }}" class="refresh-all-row" data-refresh-all-games data-refreshable-games="{{ $refreshableGames }}">
                 @csrf
-                <button type="submit">Refresh All Games</button>
+                <button type="submit">Refresh Steam Games</button>
             </form>
 
             <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
@@ -54,6 +54,28 @@
                     <span>Spoiler-safe secrets</span>
                 </label>
             </form>
+
+            <section class="platform-link-card">
+                <div class="tool-heading">
+                    <h3>PlayStation</h3>
+                    @if ($psnAccount)
+                        <span class="platform-badge platform-psn"><i></i>Linked</span>
+                    @endif
+                </div>
+                @if ($psnAccount)
+                    <form method="POST" action="{{ route('psn.sync') }}">
+                        @csrf
+                        <button type="submit">Sync PlayStation</button>
+                    </form>
+                    <small>{{ $psnAccount->synced_at ? 'Synced '.$psnAccount->synced_at->diffForHumans() : 'Ready to sync trophies' }}</small>
+                @else
+                    <form method="POST" action="{{ route('psn.link') }}">
+                        @csrf
+                        <input name="npsso" type="password" placeholder="Paste NPSSO token" autocomplete="off">
+                        <button type="submit">Link PSN</button>
+                    </form>
+                @endif
+            </section>
 
             <div class="game-filters" aria-label="Game filters">
                 <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard', ['platform_filter' => $platformFilter]) }}">
@@ -354,7 +376,9 @@
                         <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Store</a>
                         <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Achievements</a>
                         <a href="{{ $currentGame->guides_url }}" target="_blank" rel="noreferrer">Guides</a>
-                        <a href="#friend-compare">Compare</a>
+                        @if ($currentGame->platform_key === \App\Models\SteamGame::PLATFORM_STEAM)
+                            <a href="#friend-compare">Compare</a>
+                        @endif
                         <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
                             @csrf
                             <button type="submit" class="refresh-button">Refresh</button>
@@ -412,6 +436,7 @@
                     </article>
                 </section>
 
+                @if ($currentGame->platform_key === \App\Models\SteamGame::PLATFORM_STEAM)
                 <section class="compare-panel" id="friend-compare">
                     <div class="tool-heading">
                         <h3>Compare With A Tracker Friend</h3>
@@ -451,6 +476,7 @@
                         </div>
                     @endif
                 </section>
+                @endif
 
                 <div class="filters">
                     @foreach (['all' => 'All', 'locked' => 'Locked', 'unlocked' => 'Unlocked', 'secret' => 'Secret', 'rare' => 'Rare'] as $key => $label)
@@ -547,8 +573,8 @@
                 </section>
             @else
                 <section class="empty-dashboard">
-                    <h2>No Steam games yet</h2>
-                    <p>Add your Steam credentials, then sync your library.</p>
+                    <h2>No games yet</h2>
+                    <p>Sync Steam or link PSN to start tracking achievements.</p>
                 </section>
             @endif
         </main>

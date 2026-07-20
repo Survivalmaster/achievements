@@ -287,10 +287,9 @@ a {
 }
 
 .sync-actions .sync-row button {
-    font-size: .78rem;
-    line-height: 1;
+    font-size: .72rem;
+    line-height: 1.08;
     padding-inline: .25rem;
-    white-space: nowrap;
 }
 
 .refresh-all-row {
@@ -328,6 +327,60 @@ a {
     gap: .45rem;
     color: var(--soft);
     font-size: .82rem;
+}
+
+.platform-link-card {
+    border: 1px solid var(--line);
+    border-radius: .45rem;
+    background: rgba(255, 255, 255, .035);
+    margin: 0 0 .8rem;
+    padding: .7rem;
+}
+
+.platform-link-card .tool-heading {
+    margin-bottom: .55rem;
+}
+
+.platform-link-card h3 {
+    margin: 0;
+    font-size: .84rem;
+}
+
+.platform-link-card form {
+    display: grid;
+    gap: .45rem;
+}
+
+.platform-link-card input {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: .38rem;
+    background: rgba(8, 11, 16, .82);
+    color: var(--text);
+    outline: none;
+    padding: .58rem .65rem;
+}
+
+.platform-link-card input:focus {
+    border-color: rgba(95, 212, 255, .65);
+}
+
+.platform-link-card button {
+    border: 1px solid rgba(95, 212, 255, .45);
+    border-radius: .38rem;
+    background: rgba(95, 212, 255, .1);
+    color: var(--text);
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 850;
+    padding: .58rem .65rem;
+}
+
+.platform-link-card small {
+    display: block;
+    color: var(--muted);
+    font-size: .72rem;
+    margin-top: .45rem;
 }
 
 .game-filters {
@@ -430,6 +483,17 @@ a {
     border-color: rgba(95, 212, 255, .38);
     background: rgba(95, 212, 255, .12);
     color: #dff6ff;
+}
+
+.platform-psn {
+    border-color: rgba(88, 130, 255, .42);
+    background: rgba(88, 130, 255, .13);
+    color: #dfe7ff;
+}
+
+.platform-psn i {
+    background: linear-gradient(135deg, #eef4fb, #5882ff 58%, #142055);
+    box-shadow: 0 0 .45rem rgba(88, 130, 255, .38);
 }
 
 .platform-all i {

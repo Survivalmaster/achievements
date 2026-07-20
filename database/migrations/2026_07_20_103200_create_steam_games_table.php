@@ -12,6 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('platform', 24)->default('steam');
+            $table->string('external_id')->nullable();
+            $table->json('platform_meta')->nullable();
             $table->unsignedBigInteger('appid');
             $table->string('name');
             $table->string('img_icon_url')->nullable();

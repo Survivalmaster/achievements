@@ -7,6 +7,8 @@ use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use App\Models\TrackerSetting;
 use App\Models\User;
+use App\Models\UserPlatformAccount;
+use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -142,6 +144,8 @@ class DashboardController extends Controller
 
         if ($supportsPlatform && $platformFilter !== 'all') {
             $baseGamesQuery->where('platform', $platformFilter);
+        } elseif (! $supportsPlatform && $platformFilter === SteamGame::PLATFORM_PSN) {
+            $baseGamesQuery->whereRaw('1 = 0');
         }
 
         $gameCounts = [
@@ -177,9 +181,11 @@ class DashboardController extends Controller
         $platformCounts = ['all' => (clone $platformCountsQuery)->count()];
 
         foreach (SteamGame::PLATFORMS as $key => $label) {
-            $platformCounts[$key] = $supportsPlatform
-                ? (clone $platformCountsQuery)->where('platform', $key)->count()
-                : (clone $platformCountsQuery)->count();
+            $platformCounts[$key] = match (true) {
+                $supportsPlatform => (clone $platformCountsQuery)->where('platform', $key)->count(),
+                $key === SteamGame::PLATFORM_STEAM => (clone $platformCountsQuery)->count(),
+                default => 0,
+            };
         }
 
         $gamesQuery = $gameFilter === 'archived'
@@ -224,8 +230,8 @@ class DashboardController extends Controller
             'platformCounts' => $platformCounts,
             'gameCounts' => $gameCounts,
             'configured' => (bool) config('services.steam.api_key'),
-            'unsyncedGames' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
-            'refreshableGames' => SteamGame::where('user_id', Auth::id())
+            'unsyncedGames' => $this->steamGamesQuery()->whereNull('achievements_synced_at')->count(),
+            'refreshableGames' => $this->steamGamesQuery()
                 ->where(function ($query): void {
                     $query->where('achievements_total', '>', 0)
                         ->orWhereNull('achievements_synced_at');
@@ -241,7 +247,34 @@ class DashboardController extends Controller
             'refreshStatus' => $this->refreshStatus(),
             'friendActivity' => $this->friendActivity(),
             'staleGames' => $this->staleGames(),
+            'psnAccount' => $this->psnAccount(),
         ];
+    }
+
+    public function linkPsn(Request $request, PsnTrophyClient $psn): RedirectResponse
+    {
+        $data = $request->validate([
+            'npsso' => ['required', 'string', 'min:20', 'max:255'],
+        ]);
+
+        try {
+            $psn->link($request->user(), $data['npsso']);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', 'PSN linked. Sync PlayStation to pull your trophy titles.');
+    }
+
+    public function syncPsnLibrary(Request $request, PsnTrophyClient $psn): RedirectResponse
+    {
+        try {
+            $count = $psn->syncLibrary($request->user());
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', "Synced {$count} PlayStation trophy titles.");
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -284,7 +317,7 @@ class DashboardController extends Controller
             return back()->with('status', 'All games have achievement data checked.');
         }
 
-        $message = ($result['refreshed'] ?? false) ? "Refreshed {$result['synced']} games" : "Checked {$result['synced']} games";
+        $message = ($result['refreshed'] ?? false) ? "Refreshed {$result['synced']} Steam games" : "Checked {$result['synced']} Steam games";
         $this->recordRefreshStatus('Sync Achievements', $result['attempted'], $result['synced'], $result['failed']);
 
         if ($request->expectsJson()) {
@@ -359,8 +392,10 @@ class DashboardController extends Controller
 
             if ($focusedGame && $focusedGame->achievements_total > 0) {
                 try {
-                    $steam->syncAchievements($focusedGame);
-                    $focusedSynced = 1;
+                    if ($focusedGame->platform_key === SteamGame::PLATFORM_STEAM) {
+                        $steam->syncAchievements($focusedGame);
+                        $focusedSynced = 1;
+                    }
                 } catch (Throwable) {
                     $focusedFailed = 1;
                 }
@@ -385,7 +420,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
+    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
     {
         $this->authorizeGame($game);
         $beforeUnlocked = $game->achievements_unlocked;
@@ -393,8 +428,12 @@ class DashboardController extends Controller
         $beforeAchievements = $game->achievements()->where('achieved', true)->pluck('name')->all();
 
         try {
-            $steam->syncLibrary();
-            $steam->syncAchievements($game);
+            if ($game->platform_key === SteamGame::PLATFORM_PSN) {
+                $psn->syncGame($game);
+            } else {
+                $steam->syncLibrary();
+                $steam->syncAchievements($game);
+            }
         } catch (Throwable $exception) {
             return back()->with('error', $this->message($exception));
         }
@@ -429,7 +468,7 @@ class DashboardController extends Controller
         return back()->with('status', "Tonight's Hunt targets marked.");
     }
 
-    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam): RedirectResponse
+    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
     {
         $this->authorizeGame($game);
 
@@ -438,7 +477,11 @@ class DashboardController extends Controller
 
         if (! $game->achievements_synced_at) {
             try {
-                $steam->syncAchievements($game);
+                if ($game->platform_key === SteamGame::PLATFORM_PSN) {
+                    $psn->syncGame($game);
+                } else {
+                    $steam->syncAchievements($game);
+                }
             } catch (Throwable $exception) {
                 return back()->with('error', $this->message($exception));
             }
@@ -574,7 +617,26 @@ class DashboardController extends Controller
             return $exception->getMessage();
         }
 
-        return 'Steam did not answer cleanly. Check your API key, Steam ID, and profile privacy.';
+        return 'The platform API did not answer cleanly. Check the linked account, token, API key, and profile privacy.';
+    }
+
+    private function psnAccount(): ?UserPlatformAccount
+    {
+        return UserPlatformAccount::query()
+            ->where('user_id', Auth::id())
+            ->where('platform', SteamGame::PLATFORM_PSN)
+            ->first();
+    }
+
+    private function steamGamesQuery()
+    {
+        $query = SteamGame::query()->where('user_id', Auth::id());
+
+        if (Schema::hasColumn('steam_games', 'platform')) {
+            $query->where('platform', SteamGame::PLATFORM_STEAM);
+        }
+
+        return $query;
     }
 
     private function roadmapGames()

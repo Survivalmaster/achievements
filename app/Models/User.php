@@ -35,4 +35,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(SteamGame::class);
     }
+
+    public function platformAccounts(): HasMany
+    {
+        return $this->hasMany(UserPlatformAccount::class);
+    }
 }

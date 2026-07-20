@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'appid',
     'user_id',
     'platform',
+    'external_id',
+    'platform_meta',
     'name',
     'img_icon_url',
     'playtime_forever',
@@ -26,9 +28,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SteamGame extends Model
 {
     public const PLATFORM_STEAM = 'steam';
+    public const PLATFORM_PSN = 'psn';
 
     public const PLATFORMS = [
         self::PLATFORM_STEAM => 'Steam',
+        self::PLATFORM_PSN => 'PSN',
     ];
 
     protected function casts(): array
@@ -36,6 +40,7 @@ class SteamGame extends Model
         return [
             'appid' => 'integer',
             'platform' => 'string',
+            'platform_meta' => 'array',
             'playtime_forever' => 'integer',
             'playtime_2weeks' => 'integer',
             'achievements_total' => 'integer',
@@ -71,6 +76,10 @@ class SteamGame extends Model
     {
         if (! $this->img_icon_url) {
             return null;
+        }
+
+        if ($this->platform_key !== self::PLATFORM_STEAM) {
+            return str_replace('http://', 'https://', $this->img_icon_url);
         }
 
         return "https://media.steampowered.com/steamcommunity/public/images/apps/{$this->appid}/{$this->img_icon_url}.jpg";
@@ -117,16 +126,28 @@ class SteamGame extends Model
 
     public function getSteamUrlAttribute(): string
     {
+        if ($this->platform_key === self::PLATFORM_PSN) {
+            return 'https://www.playstation.com/';
+        }
+
         return "https://store.steampowered.com/app/{$this->appid}";
     }
 
     public function getGuidesUrlAttribute(): string
     {
+        if ($this->platform_key === self::PLATFORM_PSN) {
+            return 'https://www.playstation.com/support/games/';
+        }
+
         return "https://steamcommunity.com/app/{$this->appid}/guides/";
     }
 
     public function getAchievementsUrlAttribute(): string
     {
+        if ($this->platform_key === self::PLATFORM_PSN) {
+            return 'https://www.playstation.com/playstation-network/';
+        }
+
         return "https://steamcommunity.com/stats/{$this->appid}/achievements/";
     }
 }

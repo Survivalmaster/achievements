@@ -13,6 +13,8 @@ Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
 Route::middleware('dashboard.auth')->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/psn/link', [DashboardController::class, 'linkPsn'])->name('psn.link');
+    Route::post('/psn/sync', [DashboardController::class, 'syncPsnLibrary'])->name('psn.sync');
     Route::post('/sync/library', [DashboardController::class, 'syncLibrary'])->name('sync.library');
     Route::post('/sync/achievements', [DashboardController::class, 'syncAchievements'])->name('sync.achievements');
     Route::post('/sync/refresh-all', [DashboardController::class, 'refreshAllAchievements'])->name('sync.refresh-all');
