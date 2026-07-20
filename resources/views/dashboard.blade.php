@@ -29,17 +29,18 @@
                 <strong>{{ $overview['completion'] }}%</strong>
             </a>
 
-            <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
-                @csrf
-                <button type="submit">Sync Library</button>
-                <span>{{ $games->count() }} huntable</span>
-            </form>
+            <div class="sync-actions">
+                <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
+                    @csrf
+                    <button type="submit">Sync Library</button>
+                </form>
 
-            <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row compact" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
-                @csrf
-                <button type="submit">Sync Achievements</button>
-                <span data-sync-left>{{ $unsyncedGames }} left</span>
-            </form>
+                <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
+                    @csrf
+                    <button type="submit">Sync Achievements</button>
+                    <span class="sr-only" data-sync-left>{{ $unsyncedGames }} left</span>
+                </form>
+            </div>
 
             <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
                 @csrf
