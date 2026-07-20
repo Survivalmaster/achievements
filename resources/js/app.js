@@ -19,6 +19,7 @@ if (syncForm && syncModal) {
     const leftLabel = syncForm.querySelector('[data-sync-left]');
     const statusLabel = syncModal.querySelector('[data-sync-status]');
     const detailLabel = syncModal.querySelector('[data-sync-detail]');
+    const progressTrack = syncModal.querySelector('.sync-progress');
     const progressBar = syncModal.querySelector('[data-sync-progress]');
     const dismissButton = syncModal.querySelector('[data-sync-dismiss]');
 
@@ -28,7 +29,12 @@ if (syncForm && syncModal) {
         progressBar.style.width = `${percent}%`;
     };
 
+    const setWorking = (working) => {
+        progressTrack.classList.toggle('is-working', working);
+    };
+
     const finishWithReload = (message) => {
+        setWorking(false);
         statusLabel.textContent = message;
         detailLabel.textContent = 'Refreshing the dashboard with the latest achievement data...';
         setProgress(1, 1);
@@ -37,6 +43,7 @@ if (syncForm && syncModal) {
     };
 
     const stopForRetry = (message) => {
+        setWorking(false);
         statusLabel.textContent = 'Steam stopped answering cleanly.';
         detailLabel.textContent = message;
         submitButton.disabled = false;
@@ -60,9 +67,17 @@ if (syncForm && syncModal) {
         statusLabel.textContent = 'Starting achievement sync...';
         detailLabel.textContent = total > 0 ? `${total} games waiting to be checked.` : 'Checking Steam for anything outstanding.';
         setProgress(0, total);
+        setWorking(true);
 
         try {
             while (remaining > 0 || total === 0) {
+                const nextBatch = total === 0 ? 15 : Math.min(15, remaining);
+
+                statusLabel.textContent = synced > 0 || failed > 0
+                    ? `Checking next ${nextBatch} games...`
+                    : 'Checking first batch of games...';
+                setWorking(true);
+
                 const response = await fetch(syncForm.action, {
                     method: 'POST',
                     headers: {
@@ -76,6 +91,8 @@ if (syncForm && syncModal) {
                 if (!response.ok) {
                     throw new Error(payload.message || 'Steam sync failed.');
                 }
+
+                setWorking(false);
 
                 if (total === 0) {
                     total = payload.remaining + payload.synced + payload.failed;

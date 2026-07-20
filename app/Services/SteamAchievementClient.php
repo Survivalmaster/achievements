@@ -179,6 +179,18 @@ class SteamAchievementClient
         ])->throw()->json('response.players', []);
     }
 
+    public function friendSteamIds(): array
+    {
+        $friends = $this->http()->get('https://api.steampowered.com/ISteamUser/GetFriendList/v1/', [
+            'key' => $this->apiKey(),
+            'steamid' => $this->steamId(),
+            'relationship' => 'friend',
+            'format' => 'json',
+        ])->throw()->json('friendslist.friends', []);
+
+        return collect($friends)->pluck('steamid')->filter()->values()->all();
+    }
+
     public function playerAchievementsFor(int $appid, string $steamId): array
     {
         return $this->playerAchievements($appid, $steamId);

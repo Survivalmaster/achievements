@@ -6,6 +6,7 @@ use App\Models\AchievementHuntSetting;
 use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use App\Models\TrackerSetting;
+use App\Models\User;
 use App\Services\SteamAchievementClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -57,29 +58,37 @@ class DashboardController extends Controller
             $achievementQuery->where('global_percent', '>', 0)->where('global_percent', '<=', 10);
         }
 
-        $compareSteamId = $request->query('compare_steam_id') ?: $request->query('friend_steam_id');
+        $friends = $this->friends($steam);
+        $compareSteamId = $request->query('friend_steam_id');
+        $compareUser = null;
         $comparison = collect();
         $compareProfile = null;
 
         if (is_string($compareSteamId) && preg_match('/^\d{17}$/', $compareSteamId)) {
-            try {
-                $friendAchievements = collect($steam->playerAchievementsFor($game->appid, $compareSteamId))->keyBy('apiname');
-                $compareProfile = $steam->playerSummary($compareSteamId);
+            $compareUser = $friends->firstWhere('steam_id', $compareSteamId);
+
+            if ($compareUser) {
+                $compareProfile = $compareUser;
+                $friendGame = SteamGame::query()
+                    ->with('achievements')
+                    ->where('user_id', $compareUser->id)
+                    ->where('appid', $game->appid)
+                    ->first();
+                $friendAchievements = $friendGame?->achievements->keyBy('apiname') ?? collect();
+
                 $comparison = $game->achievements()
                     ->orderBy('achieved')
                     ->orderBy('name')
                     ->get()
                     ->map(function (SteamAchievement $achievement) use ($friendAchievements): array {
-                        $friend = $friendAchievements->get($achievement->apiname, []);
+                        $friend = $friendAchievements->get($achievement->apiname);
 
                         return [
                             'name' => $achievement->name,
                             'you' => $achievement->achieved,
-                            'friend' => (bool) ($friend['achieved'] ?? false),
+                            'friend' => (bool) ($friend?->achieved ?? false),
                         ];
                     });
-            } catch (Throwable) {
-                $comparison = collect();
             }
         }
 
@@ -91,9 +100,10 @@ class DashboardController extends Controller
             'filter' => $filter,
             'history' => $game->progressSnapshots()->latest('taken_at')->limit(8)->get(),
             'overview' => $this->overviewStats(),
-            'friends' => $this->friends($steam),
+            'friends' => $friends,
             'compareSteamId' => $compareSteamId,
             'compareProfile' => $compareProfile,
+            'compareUser' => $compareUser,
             'comparison' => $comparison,
         ]);
     }
@@ -196,7 +206,7 @@ class DashboardController extends Controller
     public function syncAchievements(Request $request, SteamAchievementClient $steam): RedirectResponse|JsonResponse
     {
         try {
-            $result = $steam->syncAchievementBatch(50);
+            $result = $steam->syncAchievementBatch(15);
         } catch (Throwable $exception) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => $this->message($exception)], 500);
@@ -523,10 +533,20 @@ class DashboardController extends Controller
     private function friends(SteamAchievementClient $steam)
     {
         try {
-            return collect($steam->friendSummaries());
+            $friendSteamIds = collect($steam->friendSteamIds())->filter()->values();
         } catch (Throwable) {
+            $friendSteamIds = collect();
+        }
+
+        if ($friendSteamIds->isEmpty()) {
             return collect();
         }
+
+        return User::query()
+            ->whereKeyNot(Auth::id())
+            ->whereIn('steam_id', $friendSteamIds)
+            ->orderBy('name')
+            ->get();
     }
 
     private function authorizeGame(SteamGame $game): void

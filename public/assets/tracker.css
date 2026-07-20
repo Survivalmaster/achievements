@@ -752,7 +752,7 @@ a {
 
 .compare-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: .55rem;
 }
 
@@ -877,6 +877,7 @@ a {
 }
 
 .sync-progress {
+    position: relative;
     height: .7rem;
     overflow: hidden;
     border-radius: 999px;
@@ -892,9 +893,24 @@ a {
     transition: width .22s ease;
 }
 
+.sync-progress.is-working span {
+    width: 34% !important;
+    animation: sync-progress-sweep 1.05s ease-in-out infinite;
+}
+
 @keyframes sync-spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+@keyframes sync-progress-sweep {
+    0% {
+        transform: translateX(-110%);
+    }
+
+    100% {
+        transform: translateX(310%);
     }
 }
 

@@ -330,20 +330,19 @@
 
                 <section class="compare-panel" id="friend-compare">
                     <div class="tool-heading">
-                        <h3>Compare With A Friend</h3>
+                        <h3>Compare With A Tracker Friend</h3>
                         @if ($compareProfile)
-                            <span class="soft-label">{{ $compareProfile['personaname'] ?? $compareSteamId }}</span>
+                            <span class="soft-label">{{ $compareProfile->name }}</span>
                         @endif
                     </div>
                     <form method="GET" action="{{ route('games.show', $currentGame) }}" class="compare-form">
                         <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
                         <select name="friend_steam_id">
-                            <option value="">Choose Steam friend</option>
+                            <option value="">Choose tracker friend</option>
                             @foreach ($friends as $friend)
-                                <option value="{{ $friend['steamid'] }}" @selected($compareSteamId === ($friend['steamid'] ?? null))>{{ $friend['personaname'] ?? $friend['steamid'] }}</option>
+                                <option value="{{ $friend->steam_id }}" @selected($compareSteamId === $friend->steam_id)>{{ $friend->name }}</option>
                             @endforeach
                         </select>
-                        <input name="compare_steam_id" value="{{ $compareSteamId }}" placeholder="Or paste SteamID64">
                         <button type="submit">Compare</button>
                     </form>
                     @if ($comparison->isNotEmpty())
