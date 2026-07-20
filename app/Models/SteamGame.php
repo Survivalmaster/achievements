@@ -69,8 +69,8 @@ class SteamGame extends Model
         return number_format($this->playtime_forever / 60, 1);
     }
 
-    public function getLastPlayedLabelAttribute(): string
+    public function getLastPlayedLabelAttribute(): ?string
     {
-        return $this->last_played_at?->format('M j, Y') ?? 'Never played';
+        return $this->last_played_at?->format('M j, Y');
     }
 }

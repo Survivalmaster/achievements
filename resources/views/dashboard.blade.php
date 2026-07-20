@@ -55,6 +55,8 @@
                 @forelse ($games as $game)
                     <form method="POST" action="{{ route('games.current', $game) }}" class="game-tile {{ $game->is_current ? 'active' : '' }} {{ $game->is_completed ? 'completed' : '' }}" data-game-name="{{ strtolower($game->name) }}">
                         @csrf
+                        <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                        <input type="hidden" name="filter" value="{{ $filter }}">
                         <button type="submit">
                             <span class="game-icon">
                                 @if ($game->icon_url)
@@ -67,7 +69,9 @@
                                 <strong>{{ $game->name }}</strong>
                                 <small>
                                     {{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked
-                                    <span class="played-date">{{ $game->last_played_label }}</span>
+                                    @if ($game->last_played_at)
+                                        <span class="played-date">{{ $game->last_played_label }}</span>
+                                    @endif
                                     @if ($game->is_current)
                                         <span class="main-badge">Main</span>
                                     @endif

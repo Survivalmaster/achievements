@@ -135,7 +135,7 @@ class DashboardController extends Controller
         return back()->with('status', "Refreshed achievements for {$game->name}.");
     }
 
-    public function setCurrent(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
+    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam): RedirectResponse
     {
         SteamGame::query()->update(['is_current' => false]);
         $game->update(['is_current' => true]);
@@ -148,7 +148,22 @@ class DashboardController extends Controller
             }
         }
 
-        return redirect()->route('dashboard')->with('status', "{$game->name} is now your current game.");
+        return redirect()
+            ->route('dashboard', [
+                'game_filter' => $this->gameFilter($request->input('game_filter', 'all')),
+                'filter' => $this->achievementFilter($request->input('filter', 'all')),
+            ])
+            ->with('status', "{$game->name} is now your current game.");
+    }
+
+    private function gameFilter(mixed $filter): string
+    {
+        return in_array($filter, ['all', 'in_progress', 'completed', 'unchecked'], true) ? $filter : 'all';
+    }
+
+    private function achievementFilter(mixed $filter): string
+    {
+        return in_array($filter, ['all', 'locked', 'unlocked', 'secret', 'rare'], true) ? $filter : 'all';
     }
 
     private function message(Throwable $exception): string
