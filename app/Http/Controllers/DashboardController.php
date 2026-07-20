@@ -122,6 +122,8 @@ class DashboardController extends Controller
     private function basePayload(Request $request): array
     {
         $gameFilter = $request->query('game_filter', 'all');
+        $platformFilter = $this->platformFilter($request->query('platform_filter', 'all'));
+        $supportsPlatform = Schema::hasColumn('steam_games', 'platform');
         $baseGamesQuery = SteamGame::query()
             ->where('user_id', Auth::id())
             ->with('huntSetting')
@@ -137,6 +139,10 @@ class DashboardController extends Controller
                 $query->whereDoesntHave('huntSetting')
                     ->orWhereHas('huntSetting', fn ($setting) => $setting->where('archived', false));
             });
+
+        if ($supportsPlatform && $platformFilter !== 'all') {
+            $baseGamesQuery->where('platform', $platformFilter);
+        }
 
         $gameCounts = [
             'all' => (clone $baseGamesQuery)->count(),
@@ -157,9 +163,32 @@ class DashboardController extends Controller
                 ->count(),
         ];
 
+        $platformCountsQuery = SteamGame::query()
+            ->where('user_id', Auth::id())
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_total', '>', 0);
+            })
+            ->where(function ($query): void {
+                $query->whereDoesntHave('huntSetting')
+                    ->orWhereHas('huntSetting', fn ($setting) => $setting->where('archived', false));
+            });
+
+        $platformCounts = ['all' => (clone $platformCountsQuery)->count()];
+
+        foreach (SteamGame::PLATFORMS as $key => $label) {
+            $platformCounts[$key] = $supportsPlatform
+                ? (clone $platformCountsQuery)->where('platform', $key)->count()
+                : (clone $platformCountsQuery)->count();
+        }
+
         $gamesQuery = $gameFilter === 'archived'
             ? SteamGame::query()->where('user_id', Auth::id())->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
             : clone $baseGamesQuery;
+
+        if ($gameFilter === 'archived' && $supportsPlatform && $platformFilter !== 'all') {
+            $gamesQuery->where('platform', $platformFilter);
+        }
 
         if ($gameFilter === 'in_progress') {
             $gamesQuery->where('achievements_total', '>', 0)
@@ -190,6 +219,9 @@ class DashboardController extends Controller
         return [
             'games' => $games,
             'gameFilter' => $gameFilter,
+            'platformFilter' => $platformFilter,
+            'platforms' => SteamGame::PLATFORMS,
+            'platformCounts' => $platformCounts,
             'gameCounts' => $gameCounts,
             'configured' => (bool) config('services.steam.api_key'),
             'unsyncedGames' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
@@ -416,6 +448,7 @@ class DashboardController extends Controller
             ->route('games.show', [
                 'game' => $game,
                 'game_filter' => $this->gameFilter($request->input('game_filter', 'all')),
+                'platform_filter' => $this->platformFilter($request->input('platform_filter', 'all')),
                 'filter' => $this->achievementFilter($request->input('filter', 'all')),
             ])
             ->with('status', "{$game->name} is now your current game.");
@@ -519,6 +552,15 @@ class DashboardController extends Controller
     private function gameFilter(mixed $filter): string
     {
         return in_array($filter, ['all', 'in_progress', 'completed', 'unchecked', 'archived'], true) ? $filter : 'all';
+    }
+
+    private function platformFilter(mixed $filter): string
+    {
+        if (! is_string($filter)) {
+            return 'all';
+        }
+
+        return $filter === 'all' || array_key_exists($filter, SteamGame::PLATFORMS) ? $filter : 'all';
     }
 
     private function achievementFilter(mixed $filter): string

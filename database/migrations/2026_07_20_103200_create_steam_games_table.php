@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('steam_games', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('platform', 24)->default('steam');
             $table->unsignedBigInteger('appid');
             $table->string('name');
             $table->string('img_icon_url')->nullable();
@@ -24,7 +25,7 @@ return new class extends Migration
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['user_id', 'appid']);
+            $table->unique(['user_id', 'platform', 'appid']);
         });
     }
 

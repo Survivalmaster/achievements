@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'appid',
     'user_id',
+    'platform',
     'name',
     'img_icon_url',
     'playtime_forever',
@@ -24,10 +25,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class SteamGame extends Model
 {
+    public const PLATFORM_STEAM = 'steam';
+
+    public const PLATFORMS = [
+        self::PLATFORM_STEAM => 'Steam',
+    ];
+
     protected function casts(): array
     {
         return [
             'appid' => 'integer',
+            'platform' => 'string',
             'playtime_forever' => 'integer',
             'playtime_2weeks' => 'integer',
             'achievements_total' => 'integer',
@@ -66,6 +74,21 @@ class SteamGame extends Model
         }
 
         return "https://media.steampowered.com/steamcommunity/public/images/apps/{$this->appid}/{$this->img_icon_url}.jpg";
+    }
+
+    public function getPlatformKeyAttribute(): string
+    {
+        return $this->platform ?: self::PLATFORM_STEAM;
+    }
+
+    public function getPlatformLabelAttribute(): string
+    {
+        return self::PLATFORMS[$this->platform_key] ?? ucfirst($this->platform_key);
+    }
+
+    public function getPlatformClassAttribute(): string
+    {
+        return 'platform-'.$this->platform_key;
     }
 
     public function getCompletionPercentAttribute(): int

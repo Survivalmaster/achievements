@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 use RuntimeException;
 use Throwable;
@@ -29,20 +30,29 @@ class SteamAchievementClient
             'include_played_free_games' => true,
             'format' => 'json',
         ])->throw()->json('response.games', []);
+        $supportsPlatform = Schema::hasColumn('steam_games', 'platform');
 
         foreach ($payload as $game) {
+            $lookup = ['user_id' => $userId, 'appid' => $game['appid']];
+            $values = [
+                'name' => $game['name'] ?? 'Unknown game',
+                'img_icon_url' => $game['img_icon_url'] ?? null,
+                'playtime_forever' => $game['playtime_forever'] ?? 0,
+                'playtime_2weeks' => $game['playtime_2weeks'] ?? 0,
+                'last_played_at' => ($game['rtime_last_played'] ?? 0) > 0
+                    ? Carbon::createFromTimestamp($game['rtime_last_played'])
+                    : null,
+                'synced_at' => now(),
+            ];
+
+            if ($supportsPlatform) {
+                $lookup['platform'] = SteamGame::PLATFORM_STEAM;
+                $values['platform'] = SteamGame::PLATFORM_STEAM;
+            }
+
             SteamGame::updateOrCreate(
-                ['user_id' => $userId, 'appid' => $game['appid']],
-                [
-                    'name' => $game['name'] ?? 'Unknown game',
-                    'img_icon_url' => $game['img_icon_url'] ?? null,
-                    'playtime_forever' => $game['playtime_forever'] ?? 0,
-                    'playtime_2weeks' => $game['playtime_2weeks'] ?? 0,
-                    'last_played_at' => ($game['rtime_last_played'] ?? 0) > 0
-                        ? Carbon::createFromTimestamp($game['rtime_last_played'])
-                        : null,
-                    'synced_at' => now(),
-                ],
+                $lookup,
+                $values,
             );
         }
 

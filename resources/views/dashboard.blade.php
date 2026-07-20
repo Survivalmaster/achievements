@@ -13,7 +13,7 @@
         <aside class="games-panel">
             <div class="panel-top">
                 <div>
-                    <p class="eyebrow">Steam library</p>
+                    <p class="eyebrow">Platform library</p>
                     <h1>Achievements</h1>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
@@ -24,7 +24,7 @@
                 </form>
             </div>
 
-            <a href="{{ route('dashboard') }}" class="dashboard-return {{ $mode === 'overview' ? 'active' : '' }}">
+            <a href="{{ route('dashboard', ['platform_filter' => $platformFilter]) }}" class="dashboard-return {{ $mode === 'overview' ? 'active' : '' }}">
                 <span>Dashboard</span>
                 <strong>{{ $overview['completion'] }}%</strong>
             </a>
@@ -56,7 +56,7 @@
             </form>
 
             <div class="game-filters" aria-label="Game filters">
-                <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard') }}">
+                <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard', ['platform_filter' => $platformFilter]) }}">
                     <span>Dashboard</span>
                     <strong>{{ $overview['completion'] }}%</strong>
                 </a>
@@ -67,9 +67,22 @@
                     'unchecked' => 'Unchecked',
                     'archived' => 'Archived',
                 ] as $key => $label)
-                    <a class="{{ $gameFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $key]) }}">
+                    <a class="{{ $gameFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $key, 'platform_filter' => $platformFilter]) }}">
                         <span>{{ $label }}</span>
                         <strong>{{ $gameCounts[$key] }}</strong>
+                    </a>
+                @endforeach
+            </div>
+
+            <div class="platform-filters" aria-label="Platform filters">
+                <a class="{{ $platformFilter === 'all' ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $gameFilter, 'platform_filter' => 'all']) }}">
+                    <span class="platform-badge platform-all"><i></i>All</span>
+                    <strong>{{ $platformCounts['all'] }}</strong>
+                </a>
+                @foreach ($platforms as $key => $label)
+                    <a class="{{ $platformFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $gameFilter, 'platform_filter' => $key]) }}">
+                        <span class="platform-badge platform-{{ $key }}"><i></i>{{ $label }}</span>
+                        <strong>{{ $platformCounts[$key] ?? 0 }}</strong>
                     </a>
                 @endforeach
             </div>
@@ -81,6 +94,7 @@
                     <form method="POST" action="{{ route('games.current', $game) }}" class="game-tile {{ $game->is_current ? 'active' : '' }} {{ $game->is_completed ? 'completed' : '' }}" data-game-name="{{ strtolower($game->name) }}">
                         @csrf
                         <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                        <input type="hidden" name="platform_filter" value="{{ $platformFilter }}">
                         <input type="hidden" name="filter" value="{{ $filter }}">
                         <button type="submit">
                             <span class="game-icon">
@@ -93,6 +107,7 @@
                             <span class="game-copy">
                                 <strong>{{ $game->name }}</strong>
                                 <small>
+                                    <span class="platform-mini">{{ $game->platform_label }}</span>
                                     {{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked
                                     @if ($game->last_played_at)
                                         <span class="played-date">{{ $game->last_played_label }}</span>
@@ -156,7 +171,7 @@
                     <article class="command-panel">
                         <h3>Completion Roadmap</h3>
                         @forelse ($roadmapGames as $game)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $game->name }}</strong>
                                 <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
                             </a>
@@ -183,7 +198,7 @@
                                     default => 'Good next pick',
                                 };
                             @endphp
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $achievement->name }}</strong>
                                 <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
                             </a>
@@ -195,7 +210,7 @@
                     <article class="command-panel">
                         <h3>Rarest Missing</h3>
                         @forelse ($rarestMissing as $achievement)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $achievement->name }}</strong>
                                 <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
                             </a>
@@ -207,7 +222,7 @@
                     <article class="command-panel">
                         <h3>Rarest Unlocked</h3>
                         @forelse ($rarestUnlocked as $achievement)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $achievement->name }}</strong>
                                 <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
                             </a>
@@ -271,7 +286,7 @@
                     <article class="analytics-panel">
                         <div class="tool-heading"><h3>Stale Data</h3></div>
                         @forelse ($staleGames as $game)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $game->name }}</strong>
                                 <span>{{ $game->achievements_synced_at?->diffForHumans() ?? 'Never' }}</span>
                             </a>
@@ -283,7 +298,7 @@
                     <article class="analytics-panel">
                         <div class="tool-heading"><h3>Recently Played</h3></div>
                         @forelse ($overview['recently_played'] as $game)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                 <strong>{{ $game->name }}</strong>
                                 <span>{{ $game->last_played_label }}</span>
                             </a>
@@ -296,7 +311,7 @@
                         <div class="tool-heading"><h3>Recent Achievements</h3><span class="soft-label">Last 24 hours</span></div>
                         <div class="recent-achievements">
                             @foreach ($recentAchievements as $achievement)
-                                <a class="recent-achievement" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                <a class="recent-achievement" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
                                     <span class="achievement-icon small" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
                                         @if ($achievement->display_icon)
                                             <img src="{{ $achievement->display_icon }}" alt="" onerror="this.parentElement.classList.add('image-missing'); this.remove()">
@@ -321,9 +336,10 @@
                         @endif
                     </div>
                     <div class="current-copy">
-                        <p class="eyebrow">Current game</p>
+                        <p class="eyebrow">{{ $currentGame->platform_label }} game</p>
                         <h2>{{ $currentGame->name }}</h2>
                         <div class="meta-row">
+                            <span class="platform-badge {{ $currentGame->platform_class }}"><i></i>{{ $currentGame->platform_label }}</span>
                             <span>{{ $currentGame->achievements_unlocked }} of {{ $currentGame->achievements_total }} unlocked</span>
                             <span>{{ $currentGame->playtime_hours }} hours played</span>
                             @if ($currentGame->last_played_at)
@@ -335,8 +351,8 @@
                         </div>
                     </div>
                     <div class="current-actions">
-                        <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">Store</a>
-                        <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">Steam Achievements</a>
+                        <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Store</a>
+                        <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Achievements</a>
                         <a href="{{ $currentGame->guides_url }}" target="_blank" rel="noreferrer">Guides</a>
                         <a href="#friend-compare">Compare</a>
                         <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
@@ -405,6 +421,7 @@
                     </div>
                     <form method="GET" action="{{ route('games.show', $currentGame) }}" class="compare-form">
                         <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                        <input type="hidden" name="platform_filter" value="{{ $platformFilter }}">
                         <select name="friend_steam_id">
                             <option value="">Choose tracker friend</option>
                             @foreach ($friends as $friend)
@@ -437,7 +454,7 @@
 
                 <div class="filters">
                     @foreach (['all' => 'All', 'locked' => 'Locked', 'unlocked' => 'Unlocked', 'secret' => 'Secret', 'rare' => 'Rare'] as $key => $label)
-                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('games.show', ['game' => $currentGame, 'filter' => $key, 'game_filter' => $gameFilter]) }}">{{ $label }}</a>
+                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('games.show', ['game' => $currentGame, 'filter' => $key, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">{{ $label }}</a>
                     @endforeach
                 </div>
 
