@@ -273,6 +273,15 @@ a {
     box-shadow: inset .18rem 0 0 var(--cyan);
 }
 
+.game-tile.completed button {
+    border-color: rgba(255, 204, 87, .32);
+    box-shadow: inset .18rem 0 0 #ffcc57;
+}
+
+.game-tile.completed.active button {
+    border-color: rgba(255, 204, 87, .58);
+}
+
 .game-icon,
 .achievement-icon {
     display: grid;
@@ -314,18 +323,28 @@ a {
     font-size: .78rem;
 }
 
-.main-badge {
+.main-badge,
+.completed-badge {
     display: inline-block;
     margin-left: .35rem;
-    border: 1px solid rgba(95, 212, 255, .35);
     border-radius: 999px;
-    background: rgba(95, 212, 255, .12);
-    color: var(--cyan);
     font-size: .66rem;
     font-weight: 800;
     padding: .04rem .35rem;
     text-transform: uppercase;
     vertical-align: .08rem;
+}
+
+.main-badge {
+    border: 1px solid rgba(95, 212, 255, .35);
+    background: rgba(95, 212, 255, .12);
+    color: var(--cyan);
+}
+
+.completed-badge {
+    border: 1px solid rgba(255, 204, 87, .48);
+    background: rgba(255, 204, 87, .13);
+    color: #ffcc57;
 }
 
 .progress-ring {
@@ -338,6 +357,11 @@ a {
     color: #07100c;
     font-size: .68rem;
     font-weight: 900;
+}
+
+.game-tile.completed .progress-ring {
+    background: conic-gradient(#ffcc57 var(--value), rgba(255, 255, 255, .1) 0);
+    color: #201500;
 }
 
 .achievement-panel {
@@ -515,6 +539,13 @@ a {
     z-index: 1;
     width: 4.15rem;
     height: 4.15rem;
+}
+
+.achievement-icon.image-missing::after {
+    content: attr(data-fallback);
+    color: var(--muted);
+    font-size: .82rem;
+    font-weight: 900;
 }
 
 .achievement-copy {

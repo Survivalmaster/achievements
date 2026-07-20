@@ -57,6 +57,11 @@ class SteamGame extends Model
         return (int) round(($this->achievements_unlocked / $this->achievements_total) * 100);
     }
 
+    public function getIsCompletedAttribute(): bool
+    {
+        return $this->achievements_total > 0 && $this->achievements_unlocked >= $this->achievements_total;
+    }
+
     public function getPlaytimeHoursAttribute(): string
     {
         return number_format($this->playtime_forever / 60, 1);

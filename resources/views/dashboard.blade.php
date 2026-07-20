@@ -26,7 +26,7 @@
             <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
                 @csrf
                 <button type="submit">Sync Library</button>
-                <span>{{ $games->count() }} games</span>
+                <span>{{ $games->count() }} huntable</span>
             </form>
 
             <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row compact">
@@ -39,7 +39,7 @@
 
             <nav class="game-list" aria-label="Games">
                 @forelse ($games as $game)
-                    <form method="POST" action="{{ route('games.current', $game) }}" class="game-tile {{ $game->is_current ? 'active' : '' }}" data-game-name="{{ strtolower($game->name) }}">
+                    <form method="POST" action="{{ route('games.current', $game) }}" class="game-tile {{ $game->is_current ? 'active' : '' }} {{ $game->is_completed ? 'completed' : '' }}" data-game-name="{{ strtolower($game->name) }}">
                         @csrf
                         <button type="submit">
                             <span class="game-icon">
@@ -55,6 +55,9 @@
                                     {{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked
                                     @if ($game->is_current)
                                         <span class="main-badge">Main</span>
+                                    @endif
+                                    @if ($game->is_completed)
+                                        <span class="completed-badge">Completed</span>
                                     @endif
                                 </small>
                             </span>
@@ -119,11 +122,11 @@
                 <section class="achievement-grid">
                     @forelse ($achievements as $achievement)
                         <article class="achievement-card {{ $achievement->achieved ? 'unlocked' : 'locked' }} {{ $achievement->rarity_class }}">
-                            <div class="achievement-icon">
+                            <div class="achievement-icon" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
                                 @if ($achievement->display_icon)
-                                    <img src="{{ $achievement->display_icon }}" alt="">
+                                    <img src="{{ $achievement->display_icon }}" alt="" onerror="this.parentElement.classList.add('image-missing'); this.remove()">
                                 @else
-                                    <span>?</span>
+                                    <span>{{ strtoupper(substr($achievement->name, 0, 2)) }}</span>
                                 @endif
                             </div>
                             <div class="achievement-copy">

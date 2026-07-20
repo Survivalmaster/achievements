@@ -37,7 +37,13 @@ class SteamAchievement extends Model
 
     public function getDisplayIconAttribute(): ?string
     {
-        return $this->achieved ? $this->icon : ($this->icongray ?: $this->icon);
+        $icon = $this->achieved ? $this->icon : ($this->icongray ?: $this->icon);
+
+        if (! $icon) {
+            return null;
+        }
+
+        return str_replace('http://', 'https://', $icon);
     }
 
     public function getRarityClassAttribute(): string

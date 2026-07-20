@@ -79,8 +79,8 @@ class SteamAchievementClient
                     [
                         'name' => $achievement['displayName'] ?? $achievement['name'],
                         'description' => $achievement['description'] ?? null,
-                        'icon' => $achievement['icon'] ?? null,
-                        'icongray' => $achievement['icongray'] ?? null,
+                        'icon' => $this->normalizeUrl($achievement['icon'] ?? null),
+                        'icongray' => $this->normalizeUrl($achievement['icongray'] ?? null),
                         'hidden' => (bool) ($achievement['hidden'] ?? false),
                         'achieved' => (bool) ($player['achieved'] ?? false),
                         'unlock_time' => ($player['unlocktime'] ?? 0) > 0 ? $player['unlocktime'] : null,
@@ -171,6 +171,15 @@ class SteamAchievementClient
     private function http(): PendingRequest
     {
         return Http::timeout(20)->retry(2, 300);
+    }
+
+    private function normalizeUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        return str_replace('http://', 'https://', $url);
     }
 
     private function apiKey(): string

@@ -19,13 +19,17 @@ class DashboardController extends Controller
                 'achievements as secret_count' => fn ($query) => $query->where('hidden', true),
                 'achievements as rare_count' => fn ($query) => $query->where('global_percent', '>', 0)->where('global_percent', '<=', 10),
             ])
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_total', '>', 0);
+            })
             ->orderByDesc('is_current')
             ->orderByDesc('playtime_2weeks')
             ->orderByDesc('playtime_forever')
             ->orderBy('name')
             ->get();
 
-        $currentGame = SteamGame::where('is_current', true)->first() ?? $games->first();
+        $currentGame = $games->firstWhere('is_current', true) ?? $games->first();
 
         $achievementQuery = $currentGame
             ? $currentGame->achievements()->orderBy('achieved')->orderByRaw('global_percent is null, global_percent asc')->orderBy('name')
