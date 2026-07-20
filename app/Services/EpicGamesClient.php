@@ -347,12 +347,21 @@ GQL, [
             ]);
 
         if ($response->failed()) {
-            $message = $response->json('errorMessage')
-                ?? $response->json('message')
-                ?? $response->body()
-                ?: 'Epic GraphQL request failed.';
+            $body = $response->body();
+            $message = $this->isHtmlChallenge($body)
+                ? 'Epic blocked the server with a browser security challenge. Library sync can work, but achievement sync is not available from this server IP right now.'
+                : ($response->json('errorMessage')
+                    ?? $response->json('message')
+                    ?? str($body)->limit(240)->toString()
+                    ?: 'Epic GraphQL request failed.');
 
             throw new RuntimeException('Epic API: '.$message);
+        }
+
+        $body = $response->body();
+
+        if ($this->isHtmlChallenge($body)) {
+            throw new RuntimeException('Epic API: Epic blocked the server with a browser security challenge. Library sync can work, but achievement sync is not available from this server IP right now.');
         }
 
         $payload = $response->json();
@@ -392,6 +401,17 @@ GQL, [
             || ($item['sandboxType'] ?? null) === 'PRIVATE'
             || str_ends_with((string) ($item['appName'] ?? ''), 'Content')
             || str_contains((string) ($item['appName'] ?? ''), '_Content');
+    }
+
+    private function isHtmlChallenge(string $body): bool
+    {
+        $sample = strtolower(substr(trim($body), 0, 1200));
+
+        return str_starts_with($sample, '<!doctype html')
+            || str_starts_with($sample, '<html')
+            || str_contains($sample, 'cf_challenge')
+            || str_contains($sample, 'challenge-platform')
+            || str_contains($sample, 'please complete a security check');
     }
 
     private function shouldSkipCatalogItem(array $item, array $metadata, string $appName): bool
