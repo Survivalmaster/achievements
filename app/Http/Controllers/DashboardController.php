@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SteamGame;
+use App\Services\SteamAchievementClient;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+use RuntimeException;
+use Throwable;
+
+class DashboardController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $games = SteamGame::query()
+            ->withCount([
+                'achievements as secret_count' => fn ($query) => $query->where('hidden', true),
+                'achievements as rare_count' => fn ($query) => $query->where('global_percent', '>', 0)->where('global_percent', '<=', 10),
+            ])
+            ->orderByDesc('is_current')
+            ->orderByDesc('playtime_2weeks')
+            ->orderByDesc('playtime_forever')
+            ->orderBy('name')
+            ->get();
+
+        $currentGame = SteamGame::where('is_current', true)->first() ?? $games->first();
+
+        $achievementQuery = $currentGame
+            ? $currentGame->achievements()->orderBy('achieved')->orderByRaw('global_percent is null, global_percent asc')->orderBy('name')
+            : null;
+
+        $filter = $request->query('filter', 'all');
+
+        if ($achievementQuery && $filter === 'locked') {
+            $achievementQuery->where('achieved', false);
+        } elseif ($achievementQuery && $filter === 'unlocked') {
+            $achievementQuery->where('achieved', true);
+        } elseif ($achievementQuery && $filter === 'secret') {
+            $achievementQuery->where('hidden', true);
+        } elseif ($achievementQuery && $filter === 'rare') {
+            $achievementQuery->where('global_percent', '>', 0)->where('global_percent', '<=', 10);
+        }
+
+        return view('dashboard', [
+            'games' => $games,
+            'currentGame' => $currentGame,
+            'achievements' => $achievementQuery?->get() ?? collect(),
+            'filter' => $filter,
+            'configured' => config('services.steam.api_key') && config('services.steam.steam_id'),
+        ]);
+    }
+
+    public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
+    {
+        try {
+            $count = $steam->syncLibrary();
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', "Synced {$count} Steam games.");
+    }
+
+    public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
+    {
+        try {
+            $steam->syncAchievements($game);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', "Refreshed achievements for {$game->name}.");
+    }
+
+    public function setCurrent(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
+    {
+        SteamGame::query()->update(['is_current' => false]);
+        $game->update(['is_current' => true]);
+
+        if (! $game->achievements_synced_at) {
+            try {
+                $steam->syncAchievements($game);
+            } catch (Throwable $exception) {
+                return back()->with('error', $this->message($exception));
+            }
+        }
+
+        return redirect()->route('dashboard')->with('status', "{$game->name} is now your current game.");
+    }
+
+    private function message(Throwable $exception): string
+    {
+        if ($exception instanceof RuntimeException) {
+            return $exception->getMessage();
+        }
+
+        return 'Steam did not answer cleanly. Check your API key, Steam ID, and profile privacy.';
+    }
+}

@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'steam' => [
+        'api_key' => env('STEAM_API_KEY'),
+        'steam_id' => env('STEAM_ID'),
+        'language' => env('STEAM_LANGUAGE', 'en'),
+    ],
+
+    'dashboard' => [
+        'password' => env('DASHBOARD_PASSWORD'),
+    ],
+
 ];
