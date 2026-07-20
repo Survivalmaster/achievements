@@ -349,15 +349,20 @@ class SteamAchievementClient
     {
         $current = $this->firstNumeric($player, ['curprogress', 'currentprogress', 'current', 'progress', 'value']);
         $target = $this->firstNumeric($player, ['maxprogress', 'targetprogress', 'target', 'max']);
+        $statName = null;
 
         if ($current === null) {
-            $statName = $this->progressStatName($achievement, $schemaStats);
+            $statName = $this->progressStatName($achievement, $playerStats, $schemaStats);
             $stat = $statName ? $playerStats->get($statName) : null;
             $current = $this->firstNumeric($stat ?? [], ['value']);
         }
 
         $target ??= $this->firstNumeric($achievement, ['maxprogress', 'targetprogress', 'target', 'max', 'unlockvalue', 'unlock_value', 'threshold']);
         $target ??= $this->targetFromText($achievement['description'] ?? null);
+
+        if ($current === null && $statName && $target !== null) {
+            $current = 0;
+        }
 
         if ($current === null || $target === null || $target <= 0) {
             return ['current' => null, 'target' => null];
@@ -369,8 +374,13 @@ class SteamAchievementClient
         ];
     }
 
-    private function progressStatName(array $achievement, Collection $schemaStats): ?string
+    private function progressStatName(array $achievement, Collection $playerStats, Collection $schemaStats): ?string
     {
+        $availableStats = $schemaStats->keys()
+            ->merge($playerStats->keys())
+            ->filter()
+            ->unique()
+            ->values();
         $direct = Arr::first([
             $achievement['progressStat'] ?? null,
             $achievement['progress_stat'] ?? null,
@@ -379,18 +389,19 @@ class SteamAchievementClient
             $achievement['stat_name'] ?? null,
         ], fn ($value) => is_string($value) && $value !== '');
 
-        if ($direct && $schemaStats->has($direct)) {
+        if ($direct && $availableStats->contains($direct)) {
             return $direct;
         }
 
         $candidates = collect([
             $achievement['name'] ?? null,
             $achievement['displayName'] ?? null,
+            $achievement['description'] ?? null,
         ])
             ->filter()
             ->map(fn (string $value): string => $this->normalizedStatName($value));
 
-        foreach ($schemaStats as $name => $stat) {
+        foreach ($availableStats as $name) {
             $normalized = $this->normalizedStatName((string) $name);
 
             if ($candidates->contains($normalized)) {
@@ -398,7 +409,59 @@ class SteamAchievementClient
             }
         }
 
-        return null;
+        return $this->bestProgressStatName($achievement, $availableStats);
+    }
+
+    private function bestProgressStatName(array $achievement, Collection $availableStats): ?string
+    {
+        $tokens = $this->progressTokens(implode(' ', array_filter([
+            $achievement['name'] ?? null,
+            $achievement['displayName'] ?? null,
+            $achievement['description'] ?? null,
+        ])));
+
+        if ($tokens === []) {
+            return null;
+        }
+
+        $bestName = null;
+        $bestScore = 0;
+
+        foreach ($availableStats as $name) {
+            $stat = $this->normalizedStatName((string) $name);
+            $score = 0;
+
+            foreach ($tokens as $token) {
+                if (str_contains($stat, $token)) {
+                    $score += strlen($token) >= 5 ? 2 : 1;
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestName = (string) $name;
+                $bestScore = $score;
+            }
+        }
+
+        return $bestScore >= 3 ? $bestName : null;
+    }
+
+    private function progressTokens(string $value): array
+    {
+        preg_match_all('/[a-z0-9]+/i', strtolower($value), $matches);
+
+        $stopWords = [
+            'achievement', 'achievements', 'and', 'buy', 'cars', 'complete', 'completed',
+            'for', 'from', 'get', 'iii', 'into', 'sell', 'sold', 'the', 'toy', 'vehicle',
+            'vehicles', 'with',
+        ];
+
+        return collect($matches[0] ?? [])
+            ->reject(fn (string $token): bool => is_numeric($token) || strlen($token) < 3 || in_array($token, $stopWords, true))
+            ->map(fn (string $token): string => rtrim($token, 's'))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function normalizedStatName(string $value): string
