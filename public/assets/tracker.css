@@ -275,6 +275,13 @@ a {
     padding-inline: .45rem;
 }
 
+.sync-actions .sync-row button {
+    font-size: .78rem;
+    line-height: 1;
+    padding-inline: .25rem;
+    white-space: nowrap;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;
