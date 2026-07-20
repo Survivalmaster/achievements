@@ -13,9 +13,11 @@ if (gameSearch) {
 const syncForm = document.querySelector('[data-sync-achievements]');
 const refreshAllForm = document.querySelector('[data-refresh-all-games]');
 const syncModal = document.querySelector('[data-sync-modal]');
+const quickRefreshUrl = document.body.dataset.quickRefreshUrl;
+const currentGameId = document.body.dataset.currentGameId;
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
 if (syncForm && syncModal) {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const submitButton = syncForm.querySelector('button[type="submit"]');
     const refreshAllButton = refreshAllForm?.querySelector('button[type="submit"]');
     const leftLabel = syncForm.querySelector('[data-sync-left]');
@@ -207,6 +209,32 @@ if (syncForm && syncModal) {
             stopForRetry(error.message || 'Something went wrong while refreshing every game.', refreshAllButton);
         }
     });
+}
+
+if (quickRefreshUrl && csrfToken && !sessionStorage.getItem('quickRefreshReloading')) {
+    window.setTimeout(async () => {
+        try {
+            const response = await fetch(quickRefreshUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ game_id: currentGameId || null }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (response.ok && !payload.skipped && payload.attempted > 0) {
+                sessionStorage.setItem('quickRefreshReloading', '1');
+                window.location.reload();
+            }
+        } catch (error) {
+            // Background refresh should never interrupt normal tracker use.
+        }
+    }, 1200);
+} else {
+    sessionStorage.removeItem('quickRefreshReloading');
 }
 
 document.querySelectorAll('[data-progress-slider]').forEach((slider) => {

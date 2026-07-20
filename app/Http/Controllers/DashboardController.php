@@ -11,6 +11,7 @@ use App\Services\SteamAchievementClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -277,6 +278,55 @@ class DashboardController extends Controller
         }
 
         return back()->with('status', "{$message}. {$result['remaining']} games left to refresh.");
+    }
+
+    public function quickRefreshAchievements(Request $request, SteamAchievementClient $steam): JsonResponse
+    {
+        $key = 'quick_refresh:'.Auth::id();
+        $lastRefresh = TrackerSetting::value($key);
+
+        if ($lastRefresh && now()->diffInMinutes(Carbon::parse($lastRefresh)) < 5) {
+            return response()->json([
+                'skipped' => true,
+                'message' => 'Recent refresh already ran.',
+            ]);
+        }
+
+        TrackerSetting::query()->updateOrCreate(
+            ['key' => $key],
+            ['value' => now()->toIso8601String()],
+        );
+
+        try {
+            $steam->syncLibrary();
+            $focusedGame = SteamGame::query()
+                ->where('user_id', Auth::id())
+                ->whereKey((int) $request->input('game_id'))
+                ->first();
+            $focusedSynced = 0;
+            $focusedFailed = 0;
+
+            if ($focusedGame && $focusedGame->achievements_total > 0) {
+                try {
+                    $steam->syncAchievements($focusedGame);
+                    $focusedSynced = 1;
+                } catch (Throwable) {
+                    $focusedFailed = 1;
+                }
+            }
+
+            $result = $steam->refreshActiveAchievementBatch(10);
+        } catch (Throwable $exception) {
+            return response()->json(['message' => $this->message($exception)], 500);
+        }
+
+        return response()->json([
+            ...$result,
+            'attempted' => $result['attempted'] + $focusedSynced + $focusedFailed,
+            'synced' => $result['synced'] + $focusedSynced,
+            'failed' => $result['failed'] + $focusedFailed,
+            'skipped' => false,
+        ]);
     }
 
     public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse

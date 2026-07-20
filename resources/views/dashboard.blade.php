@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ asset('assets/tracker.css') }}?v={{ filemtime(public_path('assets/tracker.css')) }}">
     <script src="{{ asset('assets/tracker.js') }}?v={{ filemtime(public_path('assets/tracker.js')) }}" defer></script>
 </head>
-<body class="tracker-body">
+<body class="tracker-body" data-quick-refresh-url="{{ route('sync.quick-refresh') }}" @if ($currentGame) data-current-game-id="{{ $currentGame->id }}" @endif>
     <div class="tracker-shell">
         <aside class="games-panel">
             <div class="panel-top">
