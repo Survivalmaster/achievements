@@ -24,6 +24,11 @@
                 </form>
             </div>
 
+            <a href="{{ route('dashboard') }}" class="dashboard-return {{ $mode === 'overview' ? 'active' : '' }}">
+                <span>Dashboard</span>
+                <strong>{{ $overview['completion'] }}%</strong>
+            </a>
+
             <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
                 @csrf
                 <button type="submit">Sync Library</button>

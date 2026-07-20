@@ -239,6 +239,39 @@ a {
     margin: 1.2rem 0 .8rem;
 }
 
+.dashboard-return {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    border: 1px solid rgba(95, 212, 255, .32);
+    border-radius: .45rem;
+    background: linear-gradient(135deg, rgba(95, 212, 255, .15), rgba(75, 232, 166, .08));
+    color: var(--text);
+    font-weight: 850;
+    margin: 1.2rem 0 .65rem;
+    padding: .75rem .85rem;
+    text-decoration: none;
+}
+
+.dashboard-return strong {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+    color: var(--cyan);
+    font-size: .78rem;
+    padding: .2rem .5rem;
+}
+
+.dashboard-return:hover,
+.dashboard-return.active {
+    border-color: rgba(95, 212, 255, .65);
+    box-shadow: inset 0 0 0 1px rgba(95, 212, 255, .14);
+}
+
+.dashboard-return + .sync-row {
+    margin-top: 0;
+}
+
 .sync-row.compact {
     margin-top: 0;
 }

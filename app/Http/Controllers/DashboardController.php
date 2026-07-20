@@ -244,14 +244,23 @@ class DashboardController extends Controller
     public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
     {
         $this->authorizeGame($game);
+        $beforeUnlocked = $game->achievements_unlocked;
+        $beforeTotal = $game->achievements_total;
 
         try {
+            $steam->syncLibrary();
             $steam->syncAchievements($game);
         } catch (Throwable $exception) {
             return back()->with('error', $this->message($exception));
         }
 
-        return back()->with('status', "Refreshed achievements for {$game->name}.");
+        $game->refresh();
+
+        if ($game->achievements_unlocked > $beforeUnlocked || $game->achievements_total !== $beforeTotal) {
+            return back()->with('status', "Updated {$game->name}: {$game->achievements_unlocked}/{$game->achievements_total} achievements unlocked.");
+        }
+
+        return back()->with('status', "Steam returned no new unlocks for {$game->name}. Still {$game->achievements_unlocked}/{$game->achievements_total} unlocked.");
     }
 
     public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam): RedirectResponse
