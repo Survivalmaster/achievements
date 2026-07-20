@@ -35,12 +35,21 @@
                 <span>{{ $unsyncedGames }} left</span>
             </form>
 
+            <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
+                @csrf
+                <label>
+                    <input type="checkbox" name="spoiler_safe" value="1" @checked($spoilerSafe) onchange="this.form.submit()">
+                    <span>Spoiler-safe secrets</span>
+                </label>
+            </form>
+
             <div class="game-filters" aria-label="Game filters">
                 @foreach ([
                     'all' => 'All',
                     'in_progress' => 'In progress',
                     'completed' => 'Completed',
                     'unchecked' => 'Unchecked',
+                    'archived' => 'Archived',
                 ] as $key => $label)
                     <a class="{{ $gameFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $key]) }}">
                         <span>{{ $label }}</span>
@@ -123,16 +132,127 @@
                             @endif
                         </div>
                     </div>
-                    <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
-                        @csrf
-                        <button type="submit" class="refresh-button">Refresh</button>
-                    </form>
+                    <div class="current-actions">
+                        <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">Store</a>
+                        <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">Steam Achievements</a>
+                        <a href="{{ $currentGame->guides_url }}" target="_blank" rel="noreferrer">Guides</a>
+                        <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
+                            @csrf
+                            <button type="submit" class="refresh-button">Refresh</button>
+                        </form>
+                    </div>
                 </section>
 
                 <section class="stats-strip">
                     <div><strong>{{ $currentGame->completion_percent }}%</strong><span>Complete</span></div>
                     <div><strong>{{ $achievements->where('hidden', true)->count() }}</strong><span>Secret shown</span></div>
                     <div><strong>{{ $achievements->filter(fn ($achievement) => $achievement->global_percent && $achievement->global_percent <= 10)->count() }}</strong><span>Rare in view</span></div>
+                </section>
+
+                <section class="hunt-tools">
+                    <article class="hunt-card game-notes">
+                        <div class="tool-heading">
+                            <h3>Game Notes</h3>
+                            @if ($currentGame->huntSetting?->archived)
+                                <span class="completed-badge">Archived</span>
+                            @endif
+                        </div>
+                        <form method="POST" action="{{ route('games.hunt', $currentGame) }}">
+                            @csrf
+                            <textarea name="note" rows="3" placeholder="Private notes, missables, co-op plans">{{ old('note', $currentGame->huntSetting?->note) }}</textarea>
+                            <div class="tool-grid">
+                                <input name="tags" value="{{ old('tags', $currentGame->huntSetting?->tags) }}" placeholder="Tags: DLC, co-op, grind">
+                                <select name="difficulty">
+                                    <option value="">No difficulty</option>
+                                    @foreach (['easy' => 'Easy', 'normal' => 'Normal', 'hard' => 'Hard', 'grind' => 'Grind', 'buggy' => 'Buggy', 'multiplayer' => 'Multiplayer', 'missable' => 'Missable'] as $key => $label)
+                                        <option value="{{ $key }}" @selected(old('difficulty', $currentGame->huntSetting?->difficulty) === $key)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <label class="archive-check">
+                                <input type="checkbox" name="archived" value="1" @checked($currentGame->huntSetting?->archived)>
+                                <span>Archive this game</span>
+                            </label>
+                            <button type="submit">Save Game Plan</button>
+                        </form>
+                    </article>
+
+                    <article class="hunt-card">
+                        <div class="tool-heading"><h3>Progress History</h3></div>
+                        <div class="history-list">
+                            @forelse ($history as $snapshot)
+                                <div>
+                                    <strong>{{ $snapshot->completion_percent }}%</strong>
+                                    <span>{{ $snapshot->achievements_unlocked }}/{{ $snapshot->achievements_total }}</span>
+                                    <small>{{ $snapshot->taken_at->format('M j, Y') }}</small>
+                                </div>
+                            @empty
+                                <p>No snapshots yet. Refresh this game after the migration has run.</p>
+                            @endforelse
+                        </div>
+                    </article>
+                </section>
+
+                <section class="command-grid">
+                    <article class="command-panel">
+                        <h3>Completion Roadmap</h3>
+                        @forelse ($roadmapGames as $game)
+                            <div class="mini-row">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
+                            </div>
+                        @empty
+                            <p>No in-progress games with achievement data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <h3>Tonight's Hunt</h3>
+                        @forelse ($tonightAchievements as $achievement)
+                            <div class="mini-row">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ $achievement->game->name }}</span>
+                            </div>
+                        @empty
+                            <p>Mark targets or sync more achievements.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <h3>Rarest Missing</h3>
+                        @forelse ($rarestMissing as $achievement)
+                            <div class="mini-row">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
+                            </div>
+                        @empty
+                            <p>No missing rarity data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <h3>Rarest Unlocked</h3>
+                        @forelse ($rarestUnlocked as $achievement)
+                            <div class="mini-row">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
+                            </div>
+                        @empty
+                            <p>No unlocked rarity data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel wide">
+                        <h3>Achievement Planner</h3>
+                        @forelse ($plannedAchievements as $achievement)
+                            <div class="mini-row">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ ucfirst($achievement->huntSetting?->status ?? 'target') }} · {{ $achievement->game->name }}</span>
+                            </div>
+                        @empty
+                            <p>Use the planner controls on achievements to build this list.</p>
+                        @endforelse
+                    </article>
                 </section>
 
                 <div class="filters">
@@ -143,6 +263,9 @@
 
                 <section class="achievement-grid">
                     @forelse ($achievements as $achievement)
+                        @php
+                            $masked = $spoilerSafe && $achievement->hidden && ! $achievement->achieved;
+                        @endphp
                         <article class="achievement-card {{ $achievement->achieved ? 'unlocked' : 'locked' }} {{ $achievement->rarity_class }}">
                             <div class="achievement-icon" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
                                 @if ($achievement->display_icon)
@@ -153,12 +276,12 @@
                             </div>
                             <div class="achievement-copy">
                                 <div class="achievement-title-row">
-                                    <h3>{{ $achievement->name }}</h3>
+                                    <h3>{{ $masked ? 'Secret achievement' : $achievement->name }}</h3>
                                     @if ($achievement->hidden)
                                         <span class="secret-pill">Secret</span>
                                     @endif
                                 </div>
-                                <p>{{ $achievement->description ?: 'No description supplied by Steam.' }}</p>
+                                <p>{{ $masked ? 'Spoiler hidden. Toggle spoiler-safe mode to reveal this one.' : ($achievement->description ?: 'No description supplied by Steam.') }}</p>
                                 <div class="achievement-meta">
                                     @if ($achievement->global_percent)
                                         <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}% of players</span>
@@ -171,6 +294,17 @@
                                         <span>Not unlocked</span>
                                     @endif
                                 </div>
+                                <form method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">
+                                    @csrf
+                                    <select name="status">
+                                        @foreach (['none' => 'No plan', 'target' => 'Target', 'later' => 'Later', 'ignore' => 'Ignore'] as $key => $label)
+                                            <option value="{{ $key }}" @selected(($achievement->huntSetting?->status ?? 'none') === $key)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input name="tags" value="{{ $achievement->huntSetting?->tags }}" placeholder="Tags">
+                                    <input name="note" value="{{ $achievement->huntSetting?->note }}" placeholder="Note">
+                                    <button type="submit">Save</button>
+                                </form>
                             </div>
                         </article>
                     @empty

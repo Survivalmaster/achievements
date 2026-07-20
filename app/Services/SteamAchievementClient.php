@@ -100,7 +100,10 @@ class SteamAchievementClient
             ]);
         });
 
-        return $game->refresh();
+        $game = $game->refresh();
+        $this->snapshot($game);
+
+        return $game;
     }
 
     /**
@@ -184,6 +187,31 @@ class SteamAchievementClient
         }
 
         return str_replace('http://', 'https://', $url);
+    }
+
+    private function snapshot(SteamGame $game): void
+    {
+        if ($game->achievements_total === 0) {
+            return;
+        }
+
+        $latest = $game->progressSnapshots()->latest('taken_at')->first();
+
+        if (
+            $latest
+            && $latest->taken_at->isToday()
+            && $latest->achievements_unlocked === $game->achievements_unlocked
+            && $latest->achievements_total === $game->achievements_total
+        ) {
+            return;
+        }
+
+        $game->progressSnapshots()->create([
+            'achievements_total' => $game->achievements_total,
+            'achievements_unlocked' => $game->achievements_unlocked,
+            'completion_percent' => $game->completion_percent,
+            'taken_at' => now(),
+        ]);
     }
 
     private function apiKey(): string

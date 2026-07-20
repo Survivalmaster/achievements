@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'steam_game_id',
@@ -33,6 +34,11 @@ class SteamAchievement extends Model
     public function game(): BelongsTo
     {
         return $this->belongsTo(SteamGame::class, 'steam_game_id');
+    }
+
+    public function huntSetting(): HasOne
+    {
+        return $this->hasOne(AchievementHuntSetting::class);
     }
 
     public function getDisplayIconAttribute(): ?string

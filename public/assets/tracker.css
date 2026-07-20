@@ -235,6 +235,23 @@ a {
     font-size: .85rem;
 }
 
+.spoiler-toggle {
+    border: 1px solid var(--line);
+    border-radius: .4rem;
+    margin: 0 0 .8rem;
+    background: rgba(255, 255, 255, .035);
+    padding: .55rem .65rem;
+}
+
+.spoiler-toggle label,
+.archive-check {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: var(--soft);
+    font-size: .82rem;
+}
+
 .game-filters {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -447,6 +464,29 @@ a {
     padding: 1rem;
 }
 
+.current-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .45rem;
+}
+
+.current-actions a,
+.current-actions button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    border: 1px solid rgba(95, 212, 255, .35);
+    border-radius: .4rem;
+    background: rgba(95, 212, 255, .08);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 700;
+    padding: .55rem .72rem;
+    text-decoration: none;
+}
+
 .current-art {
     display: grid;
     width: 4rem;
@@ -529,6 +569,131 @@ a {
     border-color: rgba(95, 212, 255, .5);
     background: rgba(95, 212, 255, .12);
     color: var(--text);
+}
+
+.hunt-tools,
+.command-grid {
+    display: grid;
+    gap: .75rem;
+    margin-bottom: .9rem;
+}
+
+.hunt-tools {
+    grid-template-columns: minmax(0, 1.3fr) minmax(18rem, .7fr);
+}
+
+.command-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hunt-card,
+.command-panel {
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    background: rgba(18, 24, 33, .66);
+    padding: .85rem;
+}
+
+.command-panel.wide {
+    grid-column: span 2;
+}
+
+.tool-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .65rem;
+}
+
+.tool-heading h3,
+.command-panel h3 {
+    margin: 0;
+    font-size: .95rem;
+}
+
+.game-notes form,
+.achievement-plan {
+    display: grid;
+    gap: .5rem;
+}
+
+.game-notes textarea,
+.game-notes input,
+.game-notes select,
+.achievement-plan input,
+.achievement-plan select {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: .35rem;
+    background: rgba(8, 11, 16, .82);
+    color: var(--text);
+    outline: none;
+    padding: .55rem .65rem;
+}
+
+.game-notes button,
+.achievement-plan button {
+    border: 1px solid rgba(95, 212, 255, .35);
+    border-radius: .35rem;
+    background: rgba(95, 212, 255, .1);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 800;
+    padding: .55rem .65rem;
+}
+
+.tool-grid,
+.achievement-plan {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 12rem);
+}
+
+.achievement-plan {
+    align-items: center;
+    grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 1.2fr) 4rem;
+    margin-top: .65rem;
+}
+
+.history-list {
+    display: grid;
+    gap: .45rem;
+}
+
+.history-list div,
+.mini-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .4rem .65rem;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding-top: .45rem;
+}
+
+.history-list div:first-child,
+.mini-row:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.history-list span,
+.history-list small,
+.mini-row span,
+.command-panel p,
+.history-list p {
+    color: var(--muted);
+    font-size: .78rem;
+}
+
+.history-list small {
+    grid-column: 1 / -1;
+}
+
+.mini-row strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .84rem;
 }
 
 .achievement-grid {
@@ -631,6 +796,10 @@ a {
     line-height: 1.42;
 }
 
+.achievement-plan {
+    grid-column: 1 / -1;
+}
+
 .achievement-meta {
     flex-wrap: wrap;
     gap: .4rem;
@@ -690,7 +859,18 @@ a {
     }
 
     .stats-strip,
-    .achievement-grid {
+    .achievement-grid,
+    .hunt-tools,
+    .command-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .command-panel.wide {
+        grid-column: span 1;
+    }
+
+    .achievement-plan,
+    .tool-grid {
         grid-template-columns: 1fr;
     }
 

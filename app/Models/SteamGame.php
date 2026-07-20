@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -41,6 +42,16 @@ class SteamGame extends Model
         return $this->hasMany(SteamAchievement::class);
     }
 
+    public function huntSetting(): HasOne
+    {
+        return $this->hasOne(GameHuntSetting::class);
+    }
+
+    public function progressSnapshots(): HasMany
+    {
+        return $this->hasMany(ProgressSnapshot::class);
+    }
+
     public function getIconUrlAttribute(): ?string
     {
         if (! $this->img_icon_url) {
@@ -72,5 +83,20 @@ class SteamGame extends Model
     public function getLastPlayedLabelAttribute(): ?string
     {
         return $this->last_played_at?->format('M j, Y');
+    }
+
+    public function getSteamUrlAttribute(): string
+    {
+        return "https://store.steampowered.com/app/{$this->appid}";
+    }
+
+    public function getGuidesUrlAttribute(): string
+    {
+        return "https://steamcommunity.com/app/{$this->appid}/guides/";
+    }
+
+    public function getAchievementsUrlAttribute(): string
+    {
+        return "https://steamcommunity.com/stats/{$this->appid}/achievements/";
     }
 }
