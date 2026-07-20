@@ -480,7 +480,7 @@ class DashboardController extends Controller
             return back()->with('status', "Updated {$game->name}: {$game->achievements_unlocked}/{$game->achievements_total} achievements unlocked.{$detail}");
         }
 
-        return back()->with('status', "Steam returned no new unlocks for {$game->name}. Still {$game->achievements_unlocked}/{$game->achievements_total} unlocked.");
+        return back()->with('status', "{$game->platform_label} returned no new unlocks for {$game->name}. Still {$game->achievements_unlocked}/{$game->achievements_total} unlocked.");
     }
 
     public function startHuntSession(): RedirectResponse
@@ -510,8 +510,6 @@ class DashboardController extends Controller
             try {
                 if ($game->platform_key === SteamGame::PLATFORM_PSN) {
                     $psn->syncGame($game);
-                } elseif ($game->platform_key === SteamGame::PLATFORM_EPIC) {
-                    $epic->syncGame($game);
                 } else {
                     $steam->syncAchievements($game);
                 }

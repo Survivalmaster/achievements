@@ -10,6 +10,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\RequestException;
 use RuntimeException;
 
 class EpicGamesClient
@@ -61,6 +62,7 @@ class EpicGamesClient
         $account = $this->account($user);
         $count = 0;
         $cursor = null;
+        $seenAppIds = [];
 
         do {
             $query = ['includeMetadata' => 'true'];
@@ -79,14 +81,26 @@ class EpicGamesClient
                     continue;
                 }
 
-                $this->upsertLibraryItem($user, $account, $item);
-                $count++;
+                $game = $this->upsertLibraryItem($user, $account, $item);
+
+                if ($game) {
+                    $seenAppIds[] = $game->appid;
+                    $count++;
+                }
             }
 
             $cursor = $payload['responseMetadata']['nextCursor'] ?? null;
         } while ($cursor);
 
         $account->update(['synced_at' => now()]);
+
+        if ($seenAppIds !== []) {
+            SteamGame::query()
+                ->where('user_id', $user->id)
+                ->where('platform', SteamGame::PLATFORM_EPIC)
+                ->whereNotIn('appid', array_unique($seenAppIds))
+                ->delete();
+        }
 
         return $count;
     }
@@ -106,7 +120,7 @@ class EpicGamesClient
         }
 
         $definitions = $this->achievementDefinitions($account, $namespace);
-        $playerRows = $this->playerAchievements($account, $namespace);
+        $playerRows = $definitions === [] ? [] : $this->playerAchievements($account, $namespace);
 
         DB::transaction(function () use ($game, $definitions, $playerRows): void {
             foreach ($definitions as $definition) {
@@ -149,13 +163,17 @@ class EpicGamesClient
         return $game->refresh();
     }
 
-    private function upsertLibraryItem(User $user, UserPlatformAccount $account, array $item): SteamGame
+    private function upsertLibraryItem(User $user, UserPlatformAccount $account, array $item): ?SteamGame
     {
         $namespace = $item['namespace'] ?? null;
         $catalogItemId = $item['catalogItemId'] ?? null;
         $appName = $item['appName'] ?? $catalogItemId ?? $namespace;
         $metadata = $this->catalogMetadata($account, $namespace, $catalogItemId);
         $title = $metadata['title'] ?? $item['title'] ?? $appName ?? 'Unknown Epic game';
+
+        if ($this->shouldSkipCatalogItem($item, $metadata, (string) $appName)) {
+            return null;
+        }
 
         return SteamGame::query()->updateOrCreate(
             [
@@ -204,9 +222,15 @@ query Achievement($sandboxId: String!, $locale: String!) {
     }
   }
 }
-GQL, ['sandboxId' => $namespace, 'locale' => 'en']);
+GQL, ['sandboxId' => $namespace, 'locale' => 'en'], true);
 
-        return collect($payload['data']['Achievement']['productAchievementsRecordBySandbox']['achievements'] ?? [])
+        $record = $payload['data']['Achievement']['productAchievementsRecordBySandbox'] ?? null;
+
+        if (! $record) {
+            return [];
+        }
+
+        return collect($record['achievements'] ?? [])
             ->pluck('achievement')
             ->filter()
             ->values()
@@ -237,7 +261,13 @@ GQL, [
             'epicAccountId' => $account->account_id,
         ]);
 
-        return collect($payload['data']['PlayerAchievement']['playerAchievementGameRecordsBySandbox']['records'][0]['playerAchievements'] ?? [])
+        $records = $payload['data']['PlayerAchievement']['playerAchievementGameRecordsBySandbox']['records'] ?? [];
+
+        if ($records === []) {
+            return [];
+        }
+
+        return collect($records[0]['playerAchievements'] ?? [])
             ->pluck('playerAchievement')
             ->filter()
             ->keyBy('achievementName')
@@ -250,16 +280,20 @@ GQL, [
             return [];
         }
 
-        return $this->http($account)
-            ->get(self::CATALOG_HOST."/catalog/api/shared/namespace/{$namespace}/bulk/items", [
-                'id' => $catalogItemId,
-                'includeDLCDetails' => 'true',
-                'includeMainGameDetails' => 'true',
-                'country' => 'US',
-                'locale' => 'en',
-            ])
-            ->throw()
-            ->json($catalogItemId, []);
+        try {
+            return $this->http($account)
+                ->get(self::CATALOG_HOST."/catalog/api/shared/namespace/{$namespace}/bulk/items", [
+                    'id' => $catalogItemId,
+                    'includeDLCDetails' => 'true',
+                    'includeMainGameDetails' => 'true',
+                    'country' => 'US',
+                    'locale' => 'en',
+                ])
+                ->throw()
+                ->json($catalogItemId, []);
+        } catch (RequestException) {
+            return [];
+        }
     }
 
     private function account(User $user): UserPlatformAccount
@@ -303,16 +337,37 @@ GQL, [
             ->timeout(25);
     }
 
-    private function graphql(UserPlatformAccount $account, string $query, array $variables): array
+    private function graphql(UserPlatformAccount $account, string $query, array $variables, bool $allowUnavailable = false): array
     {
-        return $this->http($account)
+        $response = $this->http($account)
             ->withHeaders(['User-Agent' => 'EpicGamesLauncher/14.0.8-22004686+++Portal+Release-Live'])
             ->post(self::GRAPHQL_URL, [
                 'query' => $query,
                 'variables' => $variables,
-            ])
-            ->throw()
-            ->json();
+            ]);
+
+        if ($response->failed()) {
+            $message = $response->json('errorMessage')
+                ?? $response->json('message')
+                ?? $response->body()
+                ?: 'Epic GraphQL request failed.';
+
+            throw new RuntimeException('Epic API: '.$message);
+        }
+
+        $payload = $response->json();
+
+        if (! empty($payload['errors'])) {
+            if ($allowUnavailable) {
+                return [];
+            }
+
+            $message = collect($payload['errors'])->pluck('message')->filter()->implode(' ');
+
+            throw new RuntimeException('Epic API: '.($message ?: 'Achievement data is not available for this game.'));
+        }
+
+        return $payload;
     }
 
     private function tokenRequest(array $form): array
@@ -334,7 +389,21 @@ GQL, [
     {
         return ($item['namespace'] ?? null) === 'ue'
             || ! isset($item['appName'])
-            || ($item['sandboxType'] ?? null) === 'PRIVATE';
+            || ($item['sandboxType'] ?? null) === 'PRIVATE'
+            || str_ends_with((string) ($item['appName'] ?? ''), 'Content')
+            || str_contains((string) ($item['appName'] ?? ''), '_Content');
+    }
+
+    private function shouldSkipCatalogItem(array $item, array $metadata, string $appName): bool
+    {
+        $categories = collect($metadata['categories'] ?? [])->pluck('path')->filter()->all();
+
+        return isset($metadata['mainGameItem'])
+            || in_array('mods', $categories, true)
+            || in_array('addons', $categories, true)
+            || in_array('addons/launchable', $categories, true)
+            || str_ends_with($appName, 'Content')
+            || str_contains($appName, '_Content');
     }
 
     private function imageUrl(array $metadata): ?string
