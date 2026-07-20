@@ -79,20 +79,25 @@
 
             <section class="platform-link-card compact">
                 <div class="tool-heading">
-                    <h3>More Platforms</h3>
+                    <h3>Epic Games</h3>
                 </div>
-                @foreach ([\App\Models\SteamGame::PLATFORM_EPIC, \App\Models\SteamGame::PLATFORM_EA] as $externalPlatform)
-                    @php
-                        $externalAccount = $externalAccounts->get($externalPlatform);
-                    @endphp
-                    <form method="POST" action="{{ route('platforms.link', $externalPlatform) }}" class="platform-mini-form">
-                        @csrf
-                        <span class="platform-badge platform-{{ $externalPlatform }}"><i></i>{{ \App\Models\SteamGame::PLATFORMS[$externalPlatform] }}</span>
-                        <input name="display_name" value="{{ $externalAccount?->display_name }}" placeholder="Account name">
-                        <button type="submit">{{ $externalAccount ? 'Save' : 'Add' }}</button>
-                    </form>
-                @endforeach
-                <small>Sync pending API support.</small>
+                <div class="platform-sync-block">
+                    <span class="platform-badge platform-epic"><i></i>Epic</span>
+                    @if ($epicAccount)
+                        <form method="POST" action="{{ route('epic.sync') }}" class="platform-mini-form">
+                            @csrf
+                            <input value="{{ $epicAccount->display_name }}" disabled>
+                            <button type="submit">Sync</button>
+                        </form>
+                    @else
+                        <a href="{{ $epicAuthUrl }}" target="_blank" rel="noreferrer">Get code</a>
+                        <form method="POST" action="{{ route('epic.link') }}" class="platform-mini-form">
+                            @csrf
+                            <input name="authorization_code" placeholder="Epic auth code">
+                            <button type="submit">Link</button>
+                        </form>
+                    @endif
+                </div>
             </section>
 
             <div class="game-filters" aria-label="Game filters">

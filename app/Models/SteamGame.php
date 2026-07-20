@@ -30,13 +30,11 @@ class SteamGame extends Model
     public const PLATFORM_STEAM = 'steam';
     public const PLATFORM_PSN = 'psn';
     public const PLATFORM_EPIC = 'epic';
-    public const PLATFORM_EA = 'ea';
 
     public const PLATFORMS = [
         self::PLATFORM_STEAM => 'Steam',
         self::PLATFORM_PSN => 'PSN',
         self::PLATFORM_EPIC => 'Epic',
-        self::PLATFORM_EA => 'EA',
     ];
 
     protected function casts(): array

@@ -7,6 +7,7 @@ use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use App\Models\TrackerSetting;
 use App\Models\User;
+use App\Services\EpicGamesClient;
 use App\Models\UserPlatformAccount;
 use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
@@ -248,7 +249,8 @@ class DashboardController extends Controller
             'friendActivity' => $this->friendActivity(),
             'staleGames' => $this->staleGames(),
             'psnAccount' => $this->psnAccount(),
-            'externalAccounts' => $this->externalAccounts(),
+            'epicAccount' => $this->epicAccount(),
+            'epicAuthUrl' => app(EpicGamesClient::class)->authUrl(),
         ];
     }
 
@@ -278,27 +280,30 @@ class DashboardController extends Controller
         return back()->with('status', "Synced {$count} PlayStation trophy titles.");
     }
 
-    public function linkExternalPlatform(Request $request, string $platform): RedirectResponse
+    public function linkEpic(Request $request, EpicGamesClient $epic): RedirectResponse
     {
-        $platform = $this->externalLinkPlatform($platform);
-
         $data = $request->validate([
-            'display_name' => ['required', 'string', 'max:120'],
+            'authorization_code' => ['required', 'string', 'max:500'],
         ]);
 
-        UserPlatformAccount::query()->updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'platform' => $platform,
-            ],
-            [
-                'display_name' => $data['display_name'],
-                'linked_at' => now(),
-                'meta' => ['sync_supported' => false],
-            ],
-        );
+        try {
+            $epic->link($request->user(), $data['authorization_code']);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
 
-        return back()->with('status', SteamGame::PLATFORMS[$platform].' account noted. Automatic achievement sync is not available yet.');
+        return back()->with('status', 'Epic linked. Sync Epic to pull your library.');
+    }
+
+    public function syncEpicLibrary(Request $request, EpicGamesClient $epic): RedirectResponse
+    {
+        try {
+            $count = $epic->syncLibrary($request->user());
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', "Synced {$count} Epic library items.");
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -444,7 +449,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
+    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, EpicGamesClient $epic): RedirectResponse
     {
         $this->authorizeGame($game);
         $beforeUnlocked = $game->achievements_unlocked;
@@ -454,6 +459,8 @@ class DashboardController extends Controller
         try {
             if ($game->platform_key === SteamGame::PLATFORM_PSN) {
                 $psn->syncGame($game);
+            } elseif ($game->platform_key === SteamGame::PLATFORM_EPIC) {
+                $epic->syncGame($game);
             } else {
                 $steam->syncLibrary();
                 $steam->syncAchievements($game);
@@ -492,7 +499,7 @@ class DashboardController extends Controller
         return back()->with('status', "Tonight's Hunt targets marked.");
     }
 
-    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
+    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, EpicGamesClient $epic): RedirectResponse
     {
         $this->authorizeGame($game);
 
@@ -503,6 +510,8 @@ class DashboardController extends Controller
             try {
                 if ($game->platform_key === SteamGame::PLATFORM_PSN) {
                     $psn->syncGame($game);
+                } elseif ($game->platform_key === SteamGame::PLATFORM_EPIC) {
+                    $epic->syncGame($game);
                 } else {
                     $steam->syncAchievements($game);
                 }
@@ -652,20 +661,13 @@ class DashboardController extends Controller
             ->first();
     }
 
-    private function externalAccounts()
+    private function epicAccount(): ?UserPlatformAccount
     {
         return UserPlatformAccount::query()
             ->where('user_id', Auth::id())
-            ->whereIn('platform', [SteamGame::PLATFORM_EPIC, SteamGame::PLATFORM_EA])
-            ->get()
-            ->keyBy('platform');
-    }
-
-    private function externalLinkPlatform(string $platform): string
-    {
-        abort_unless(in_array($platform, [SteamGame::PLATFORM_EPIC, SteamGame::PLATFORM_EA], true), 404);
-
-        return $platform;
+            ->where('platform', SteamGame::PLATFORM_EPIC)
+            ->whereNotNull('access_token')
+            ->first();
     }
 
     private function steamGamesQuery()
