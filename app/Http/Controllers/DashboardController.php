@@ -324,34 +324,52 @@ class DashboardController extends Controller
 
     private function tonightAchievements()
     {
-        $targets = SteamAchievement::query()
+        return SteamAchievement::query()
             ->with(['game', 'huntSetting'])
             ->where('achieved', false)
-            ->whereHas('huntSetting', fn ($setting) => $setting->where('status', 'target'))
-            ->whereHas('game', function ($query): void {
-                $query->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
-            })
-            ->orderByRaw('global_percent is null, global_percent asc')
-            ->limit(4)
-            ->get();
-
-        if ($targets->count() >= 4) {
-            return $targets;
-        }
-
-        $rare = SteamAchievement::query()
-            ->with(['game', 'huntSetting'])
-            ->where('achieved', false)
-            ->where('global_percent', '>', 0)
             ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('status', 'ignore'))
             ->whereHas('game', function ($query): void {
-                $query->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
+                $query
+                    ->where('achievements_total', '>', 0)
+                    ->whereColumn('achievements_unlocked', '<', 'achievements_total')
+                    ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
             })
-            ->orderBy('global_percent')
-            ->limit(4 - $targets->count())
-            ->get();
+            ->limit(250)
+            ->get()
+            ->sortByDesc(fn (SteamAchievement $achievement): float => $this->huntScore($achievement))
+            ->take(4)
+            ->values();
+    }
 
-        return $targets->concat($rare);
+    private function huntScore(SteamAchievement $achievement): float
+    {
+        $game = $achievement->game;
+        $score = 0;
+
+        if (($achievement->huntSetting?->status ?? 'none') === 'target') {
+            $score += 1000;
+        }
+
+        if ($game?->last_played_at) {
+            $daysSincePlayed = max(0, $game->last_played_at->diffInDays(now()));
+            $score += max(0, 220 - ($daysSincePlayed * 12));
+        }
+
+        if ($game && $game->achievements_total > 0) {
+            $remaining = max(1, $game->achievements_total - $game->achievements_unlocked);
+            $score += max(0, 180 - ($remaining * 12));
+            $score += $game->completion_percent * 1.2;
+        }
+
+        if ($achievement->global_percent !== null && (float) $achievement->global_percent > 0) {
+            $score += max(0, 120 - ((float) $achievement->global_percent * 4));
+        }
+
+        if (($achievement->huntSetting?->status ?? 'none') === 'later') {
+            $score += 35;
+        }
+
+        return $score;
     }
 
     private function overviewStats(): array

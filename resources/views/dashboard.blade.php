@@ -205,9 +205,18 @@
                     <article class="analytics-panel">
                         <div class="tool-heading"><h3>Tonight's Hunt</h3></div>
                         @forelse ($tonightAchievements as $achievement)
+                            @php
+                                $huntReason = match (true) {
+                                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Target',
+                                    $achievement->game?->last_played_at && $achievement->game->last_played_at->diffInDays(now()) <= 14 => 'Recently played',
+                                    $achievement->game && $achievement->game->achievements_total - $achievement->game->achievements_unlocked <= 5 => 'Close completion',
+                                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 10 => 'Rare missing',
+                                    default => 'Good next pick',
+                                };
+                            @endphp
                             <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
                                 <strong>{{ $achievement->name }}</strong>
-                                <span>{{ $achievement->game->name }}</span>
+                                <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
                             </a>
                         @empty
                             <p>Mark targets to shape this list.</p>
@@ -312,9 +321,18 @@
                     <article class="command-panel">
                         <h3>Tonight's Hunt</h3>
                         @forelse ($tonightAchievements as $achievement)
+                            @php
+                                $huntReason = match (true) {
+                                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Target',
+                                    $achievement->game?->last_played_at && $achievement->game->last_played_at->diffInDays(now()) <= 14 => 'Recently played',
+                                    $achievement->game && $achievement->game->achievements_total - $achievement->game->achievements_unlocked <= 5 => 'Close completion',
+                                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 10 => 'Rare missing',
+                                    default => 'Good next pick',
+                                };
+                            @endphp
                             <div class="mini-row">
                                 <strong>{{ $achievement->name }}</strong>
-                                <span>{{ $achievement->game->name }}</span>
+                                <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
                             </div>
                         @empty
                             <p>Mark targets or sync more achievements.</p>
