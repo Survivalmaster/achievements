@@ -82,7 +82,9 @@
                     <h3>More Platforms</h3>
                 </div>
                 @foreach ([\App\Models\SteamGame::PLATFORM_EPIC, \App\Models\SteamGame::PLATFORM_EA] as $externalPlatform)
-                    @php($externalAccount = $externalAccounts->get($externalPlatform))
+                    @php
+                        $externalAccount = $externalAccounts->get($externalPlatform);
+                    @endphp
                     <form method="POST" action="{{ route('platforms.link', $externalPlatform) }}" class="platform-mini-form">
                         @csrf
                         <span class="platform-badge platform-{{ $externalPlatform }}"><i></i>{{ \App\Models\SteamGame::PLATFORMS[$externalPlatform] }}</span>
