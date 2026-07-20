@@ -559,6 +559,153 @@ a {
     font-size: .8rem;
 }
 
+.overview-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 9rem;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    background:
+        linear-gradient(90deg, rgba(95, 212, 255, .1), transparent 55%),
+        rgba(18, 24, 33, .78);
+    margin-bottom: .9rem;
+    padding: 1.1rem;
+}
+
+.overview-hero h2 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 4rem);
+    line-height: 1;
+}
+
+.overview-hero p {
+    color: var(--muted);
+    margin: .55rem 0 0;
+}
+
+.overview-donut {
+    display: grid;
+    width: 8.4rem;
+    height: 8.4rem;
+    place-items: center;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, #111821 0 55%, transparent 56%),
+        conic-gradient(var(--green) var(--value), rgba(255, 255, 255, .09) 0);
+}
+
+.overview-donut strong,
+.overview-donut span {
+    grid-area: 1 / 1;
+}
+
+.overview-donut strong {
+    font-size: 1.8rem;
+}
+
+.overview-donut span {
+    align-self: end;
+    margin-bottom: 1.8rem;
+    color: var(--muted);
+    font-size: .72rem;
+}
+
+.overview-donut.small {
+    width: 5.4rem;
+    height: 5.4rem;
+}
+
+.overview-stats,
+.analytics-grid {
+    display: grid;
+    gap: .75rem;
+}
+
+.overview-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    margin-bottom: .9rem;
+}
+
+.overview-stats div,
+.analytics-panel {
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    background: rgba(18, 24, 33, .66);
+    padding: .85rem;
+}
+
+.overview-stats strong {
+    display: block;
+    font-size: 1.55rem;
+}
+
+.overview-stats span,
+.soft-label {
+    color: var(--muted);
+    font-size: .78rem;
+}
+
+.analytics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-bottom: 1.5rem;
+}
+
+.analytics-panel.wide {
+    grid-column: span 2;
+}
+
+.bar-chart {
+    display: grid;
+    gap: .65rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) 2rem;
+    align-items: center;
+    gap: .65rem;
+}
+
+.bar-row span,
+.bar-row strong {
+    color: var(--soft);
+    font-size: .78rem;
+}
+
+.bar-row div {
+    height: .7rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+}
+
+.bar-row i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--cyan), var(--green));
+}
+
+.split-chart {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+
+.split-chart p {
+    margin: .25rem 0;
+}
+
+.link-row {
+    color: inherit;
+    text-decoration: none;
+}
+
+.link-row:hover strong {
+    color: var(--cyan);
+}
+
 .filters {
     display: flex;
     flex-wrap: wrap;
@@ -855,6 +1002,11 @@ a {
         grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
         max-height: 18rem;
     }
+
+    .overview-stats,
+    .analytics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 560px) {
@@ -871,8 +1023,19 @@ a {
     .stats-strip,
     .achievement-grid,
     .hunt-tools,
-    .command-grid {
+    .command-grid,
+    .overview-stats,
+    .analytics-grid,
+    .overview-hero {
         grid-template-columns: 1fr;
+    }
+
+    .overview-donut {
+        justify-self: start;
+    }
+
+    .analytics-panel.wide {
+        grid-column: span 1;
     }
 
     .command-panel.wide {

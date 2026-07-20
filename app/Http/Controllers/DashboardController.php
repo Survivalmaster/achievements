@@ -17,6 +17,55 @@ class DashboardController extends Controller
 {
     public function index(Request $request): View
     {
+        $payload = $this->basePayload($request);
+
+        return view('dashboard', [
+            ...$payload,
+            'mode' => 'overview',
+            'currentGame' => null,
+            'achievements' => collect(),
+            'filter' => $this->achievementFilter($request->query('filter', 'all')),
+            'history' => collect(),
+            'overview' => $this->overviewStats(),
+        ]);
+    }
+
+    public function showGame(Request $request, SteamGame $game): View
+    {
+        $payload = $this->basePayload($request);
+        $game->load('huntSetting');
+
+        $achievementQuery = $game->achievements()
+            ->with('huntSetting')
+            ->orderBy('achieved')
+            ->orderByRaw('global_percent is null, global_percent asc')
+            ->orderBy('name');
+
+        $filter = $this->achievementFilter($request->query('filter', 'all'));
+
+        if ($filter === 'locked') {
+            $achievementQuery->where('achieved', false);
+        } elseif ($filter === 'unlocked') {
+            $achievementQuery->where('achieved', true);
+        } elseif ($filter === 'secret') {
+            $achievementQuery->where('hidden', true);
+        } elseif ($filter === 'rare') {
+            $achievementQuery->where('global_percent', '>', 0)->where('global_percent', '<=', 10);
+        }
+
+        return view('dashboard', [
+            ...$payload,
+            'mode' => 'game',
+            'currentGame' => $game,
+            'achievements' => $achievementQuery->get(),
+            'filter' => $filter,
+            'history' => $game->progressSnapshots()->latest('taken_at')->limit(8)->get(),
+            'overview' => $this->overviewStats(),
+        ]);
+    }
+
+    private function basePayload(Request $request): array
+    {
         $gameFilter = $request->query('game_filter', 'all');
         $baseGamesQuery = SteamGame::query()
             ->with('huntSetting')
@@ -75,31 +124,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get();
 
-        $currentGame = $games->firstWhere('is_current', true) ?? $games->first();
-
-        $achievementQuery = $currentGame
-            ? $currentGame->achievements()->with('huntSetting')->orderBy('achieved')->orderByRaw('global_percent is null, global_percent asc')->orderBy('name')
-            : null;
-
-        $filter = $request->query('filter', 'all');
-
-        if ($achievementQuery && $filter === 'locked') {
-            $achievementQuery->where('achieved', false);
-        } elseif ($achievementQuery && $filter === 'unlocked') {
-            $achievementQuery->where('achieved', true);
-        } elseif ($achievementQuery && $filter === 'secret') {
-            $achievementQuery->where('hidden', true);
-        } elseif ($achievementQuery && $filter === 'rare') {
-            $achievementQuery->where('global_percent', '>', 0)->where('global_percent', '<=', 10);
-        }
-
         $spoilerSafe = TrackerSetting::value('spoiler_safe', '0') === '1';
 
-        return view('dashboard', [
+        return [
             'games' => $games,
-            'currentGame' => $currentGame,
-            'achievements' => $achievementQuery?->get() ?? collect(),
-            'filter' => $filter,
             'gameFilter' => $gameFilter,
             'gameCounts' => $gameCounts,
             'configured' => config('services.steam.api_key') && config('services.steam.steam_id'),
@@ -110,8 +138,7 @@ class DashboardController extends Controller
             'rarestMissing' => $this->rareAchievements(false),
             'plannedAchievements' => $this->plannedAchievements(),
             'tonightAchievements' => $this->tonightAchievements(),
-            'history' => $currentGame?->progressSnapshots()->latest('taken_at')->limit(8)->get() ?? collect(),
-        ]);
+        ];
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -171,7 +198,8 @@ class DashboardController extends Controller
         }
 
         return redirect()
-            ->route('dashboard', [
+            ->route('games.show', [
+                'game' => $game,
                 'game_filter' => $this->gameFilter($request->input('game_filter', 'all')),
                 'filter' => $this->achievementFilter($request->input('filter', 'all')),
             ])
@@ -324,5 +352,72 @@ class DashboardController extends Controller
             ->get();
 
         return $targets->concat($rare);
+    }
+
+    private function overviewStats(): array
+    {
+        $activeGames = SteamGame::query()
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_total', '>', 0);
+            })
+            ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
+
+        $totalAchievements = (int) (clone $activeGames)->sum('achievements_total');
+        $unlockedAchievements = (int) (clone $activeGames)->sum('achievements_unlocked');
+        $completion = $totalAchievements > 0 ? (int) round(($unlockedAchievements / $totalAchievements) * 100) : 0;
+
+        $syncedGames = (clone $activeGames)->whereNotNull('achievements_synced_at')->where('achievements_total', '>', 0)->get();
+        $bands = [
+            '0-24%' => 0,
+            '25-49%' => 0,
+            '50-74%' => 0,
+            '75-99%' => 0,
+            '100%' => 0,
+        ];
+
+        foreach ($syncedGames as $game) {
+            if ($game->completion_percent === 100) {
+                $bands['100%']++;
+            } elseif ($game->completion_percent >= 75) {
+                $bands['75-99%']++;
+            } elseif ($game->completion_percent >= 50) {
+                $bands['50-74%']++;
+            } elseif ($game->completion_percent >= 25) {
+                $bands['25-49%']++;
+            } else {
+                $bands['0-24%']++;
+            }
+        }
+
+        $maxBand = max($bands) ?: 1;
+
+        return [
+            'games' => (clone $activeGames)->count(),
+            'synced_games' => $syncedGames->count(),
+            'completed_games' => (clone $activeGames)->where('achievements_total', '>', 0)->whereColumn('achievements_unlocked', '>=', 'achievements_total')->count(),
+            'in_progress_games' => (clone $activeGames)->where('achievements_total', '>', 0)->whereColumn('achievements_unlocked', '<', 'achievements_total')->count(),
+            'total_achievements' => $totalAchievements,
+            'unlocked_achievements' => $unlockedAchievements,
+            'locked_achievements' => max(0, $totalAchievements - $unlockedAchievements),
+            'completion' => $completion,
+            'rare_missing' => SteamAchievement::query()->where('achieved', false)->where('global_percent', '>', 0)->where('global_percent', '<=', 10)->count(),
+            'secret_locked' => SteamAchievement::query()->where('achieved', false)->where('hidden', true)->count(),
+            'targets' => AchievementHuntSetting::query()->where('status', 'target')->count(),
+            'bands' => $bands,
+            'max_band' => $maxBand,
+            'top_playtime' => SteamGame::query()
+                ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
+                ->where('playtime_forever', '>', 0)
+                ->orderByDesc('playtime_forever')
+                ->limit(5)
+                ->get(),
+            'recently_played' => SteamGame::query()
+                ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
+                ->whereNotNull('last_played_at')
+                ->orderByDesc('last_played_at')
+                ->limit(5)
+                ->get(),
+        ];
     }
 }

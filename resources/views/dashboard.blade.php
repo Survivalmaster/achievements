@@ -44,6 +44,10 @@
             </form>
 
             <div class="game-filters" aria-label="Game filters">
+                <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard') }}">
+                    <span>Dashboard</span>
+                    <strong>{{ $overview['completion'] }}%</strong>
+                </a>
                 @foreach ([
                     'all' => 'All',
                     'in_progress' => 'In progress',
@@ -111,7 +115,106 @@
                 <div class="notice error">Add STEAM_API_KEY and STEAM_ID to .env, then run php artisan config:clear.</div>
             @endunless
 
-            @if ($currentGame)
+            @if ($mode === 'overview')
+                <section class="overview-hero">
+                    <div>
+                        <p class="eyebrow">Command centre</p>
+                        <h2>Achievement Dashboard</h2>
+                        <p>{{ number_format($overview['unlocked_achievements']) }} unlocked from {{ number_format($overview['total_achievements']) }} tracked achievements.</p>
+                    </div>
+                    <div class="overview-donut" style="--value: {{ $overview['completion'] }}%">
+                        <strong>{{ $overview['completion'] }}%</strong>
+                        <span>overall</span>
+                    </div>
+                </section>
+
+                <section class="overview-stats">
+                    <div><strong>{{ number_format($overview['games']) }}</strong><span>Huntable games</span></div>
+                    <div><strong>{{ number_format($overview['completed_games']) }}</strong><span>Completed games</span></div>
+                    <div><strong>{{ number_format($overview['in_progress_games']) }}</strong><span>In progress</span></div>
+                    <div><strong>{{ number_format($overview['locked_achievements']) }}</strong><span>Achievements left</span></div>
+                    <div><strong>{{ number_format($overview['rare_missing']) }}</strong><span>Rare missing</span></div>
+                    <div><strong>{{ number_format($overview['targets']) }}</strong><span>Targets marked</span></div>
+                </section>
+
+                <section class="analytics-grid">
+                    <article class="analytics-panel wide">
+                        <div class="tool-heading">
+                            <h3>Completion Spread</h3>
+                            <span class="soft-label">{{ $overview['synced_games'] }} synced games</span>
+                        </div>
+                        <div class="bar-chart">
+                            @foreach ($overview['bands'] as $label => $count)
+                                <div class="bar-row">
+                                    <span>{{ $label }}</span>
+                                    <div><i style="width: {{ ($count / $overview['max_band']) * 100 }}%"></i></div>
+                                    <strong>{{ $count }}</strong>
+                                </div>
+                            @endforeach
+                        </div>
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Achievement Split</h3></div>
+                        <div class="split-chart">
+                            <div class="overview-donut small" style="--value: {{ $overview['completion'] }}%"></div>
+                            <div>
+                                <p><strong>{{ number_format($overview['unlocked_achievements']) }}</strong> unlocked</p>
+                                <p><strong>{{ number_format($overview['locked_achievements']) }}</strong> locked</p>
+                                <p><strong>{{ number_format($overview['secret_locked']) }}</strong> secret locked</p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Closest Completions</h3></div>
+                        @forelse ($roadmapGames as $game)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
+                            </a>
+                        @empty
+                            <p>No roadmap data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Recently Played</h3></div>
+                        @forelse ($overview['recently_played'] as $game)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->last_played_label }}</span>
+                            </a>
+                        @empty
+                            <p>No last-played dates from Steam yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Most Played</h3></div>
+                        @forelse ($overview['top_playtime'] as $game)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->playtime_hours }}h</span>
+                            </a>
+                        @empty
+                            <p>No playtime data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Tonight's Hunt</h3></div>
+                        @forelse ($tonightAchievements as $achievement)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ $achievement->game->name }}</span>
+                            </a>
+                        @empty
+                            <p>Mark targets to shape this list.</p>
+                        @endforelse
+                    </article>
+                </section>
+            @elseif ($currentGame)
                 <section class="current-game">
                     <div class="current-art">
                         @if ($currentGame->icon_url)
@@ -247,7 +350,7 @@
                         @forelse ($plannedAchievements as $achievement)
                             <div class="mini-row">
                                 <strong>{{ $achievement->name }}</strong>
-                                <span>{{ ucfirst($achievement->huntSetting?->status ?? 'target') }} · {{ $achievement->game->name }}</span>
+                                <span>{{ ucfirst($achievement->huntSetting?->status ?? 'target') }} / {{ $achievement->game->name }}</span>
                             </div>
                         @empty
                             <p>Use the planner controls on achievements to build this list.</p>
@@ -257,7 +360,7 @@
 
                 <div class="filters">
                     @foreach (['all' => 'All', 'locked' => 'Locked', 'unlocked' => 'Unlocked', 'secret' => 'Secret', 'rare' => 'Rare'] as $key => $label)
-                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['filter' => $key, 'game_filter' => $gameFilter]) }}">{{ $label }}</a>
+                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('games.show', ['game' => $currentGame, 'filter' => $key, 'game_filter' => $gameFilter]) }}">{{ $label }}</a>
                     @endforeach
                 </div>
 
