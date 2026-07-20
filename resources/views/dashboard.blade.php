@@ -42,6 +42,11 @@
                 </form>
             </div>
 
+            <form method="POST" action="{{ route('sync.refresh-all') }}" class="refresh-all-row" data-refresh-all-games data-refreshable-games="{{ $refreshableGames }}">
+                @csrf
+                <button type="submit">Refresh All Games</button>
+            </form>
+
             <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
                 @csrf
                 <label>
@@ -474,6 +479,12 @@
                                         <span>Not unlocked</span>
                                     @endif
                                 </div>
+                                @if ($achievement->has_progress)
+                                    <div class="achievement-progress" style="--value: {{ $achievement->progress_percent }}%">
+                                        <div><span></span></div>
+                                        <strong>{{ number_format($achievement->progress_current) }} / {{ number_format($achievement->progress_target) }}</strong>
+                                    </div>
+                                @endif
                                 <form method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">
                                     @csrf
                                     <select name="status">

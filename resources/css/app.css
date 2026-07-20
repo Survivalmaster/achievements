@@ -140,6 +140,7 @@ a {
 .login-form button,
 .steam-login-button,
 .sync-row button,
+.refresh-all-row button,
 .refresh-button {
     border: 1px solid rgba(95, 212, 255, .45);
     border-radius: .4rem;
@@ -290,6 +291,17 @@ a {
     line-height: 1;
     padding-inline: .25rem;
     white-space: nowrap;
+}
+
+.refresh-all-row {
+    margin: 0 0 .8rem;
+}
+
+.refresh-all-row button {
+    width: 100%;
+    min-height: 2.65rem;
+    background: rgba(95, 212, 255, .08);
+    font-size: .9rem;
 }
 
 .sr-only {
@@ -1231,6 +1243,36 @@ a {
 .achievement-meta {
     flex-wrap: wrap;
     gap: .4rem;
+}
+
+.achievement-progress {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+    margin: .65rem 0 .1rem;
+}
+
+.achievement-progress div {
+    height: .42rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(161, 174, 194, .22);
+}
+
+.achievement-progress span {
+    display: block;
+    width: var(--value);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22a9ff, var(--cyan));
+}
+
+.achievement-progress strong {
+    color: var(--soft);
+    font-size: .78rem;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
 .empty-state,

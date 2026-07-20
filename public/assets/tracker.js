@@ -11,11 +11,13 @@ if (gameSearch) {
 }
 
 const syncForm = document.querySelector('[data-sync-achievements]');
+const refreshAllForm = document.querySelector('[data-refresh-all-games]');
 const syncModal = document.querySelector('[data-sync-modal]');
 
 if (syncForm && syncModal) {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const submitButton = syncForm.querySelector('button[type="submit"]');
+    const refreshAllButton = refreshAllForm?.querySelector('button[type="submit"]');
     const leftLabel = syncForm.querySelector('[data-sync-left]');
     const statusLabel = syncModal.querySelector('[data-sync-status]');
     const detailLabel = syncModal.querySelector('[data-sync-detail]');
@@ -42,11 +44,11 @@ if (syncForm && syncModal) {
         window.setTimeout(() => window.location.reload(), 900);
     };
 
-    const stopForRetry = (message) => {
+    const stopForRetry = (message, activeButton = submitButton) => {
         setWorking(false);
         statusLabel.textContent = 'Steam stopped answering cleanly.';
         detailLabel.textContent = message;
-        submitButton.disabled = false;
+        activeButton.disabled = false;
         dismissButton.hidden = false;
     };
 
@@ -132,6 +134,77 @@ if (syncForm && syncModal) {
             finishWithReload('Achievement sync complete.');
         } catch (error) {
             stopForRetry(error.message || 'Something went wrong while talking to Steam.');
+        }
+    });
+
+    refreshAllForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        let total = Number.parseInt(refreshAllForm.dataset.refreshableGames || '0', 10);
+        let processed = 0;
+        let synced = 0;
+        let failed = 0;
+        let afterId = 0;
+
+        refreshAllButton.disabled = true;
+        dismissButton.hidden = true;
+        syncModal.hidden = false;
+        statusLabel.textContent = 'Refreshing all games...';
+        detailLabel.textContent = total > 0 ? `${total} games queued for a full achievement check.` : 'Checking the full library for refreshable games.';
+        setProgress(0, total);
+        setWorking(true);
+
+        try {
+            while (true) {
+                const nextBatch = total > 0 ? Math.min(15, Math.max(total - processed, 1)) : 15;
+
+                statusLabel.textContent = processed > 0
+                    ? `Refreshing next ${nextBatch} games...`
+                    : 'Refreshing first batch of games...';
+                setWorking(true);
+
+                const response = await fetch(refreshAllForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify({ after_id: afterId }),
+                });
+
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(payload.message || 'Full refresh failed.');
+                }
+
+                setWorking(false);
+
+                if (processed === 0) {
+                    total = payload.total;
+                }
+
+                processed += payload.attempted;
+                synced += payload.synced;
+                failed += payload.failed;
+                afterId = payload.next_after_id;
+
+                setProgress(processed, total);
+                statusLabel.textContent = payload.remaining > 0
+                    ? `Refreshed ${processed} of ${total} games`
+                    : `Refreshed ${processed} games`;
+                detailLabel.textContent = failed > 0
+                    ? `${synced} updated, ${failed} failed, ${payload.remaining} left.`
+                    : `${synced} updated, ${payload.remaining} left.`;
+
+                if (payload.attempted === 0 || payload.remaining <= 0) {
+                    finishWithReload('Full achievement refresh complete.');
+                    return;
+                }
+            }
+        } catch (error) {
+            stopForRetry(error.message || 'Something went wrong while refreshing every game.', refreshAllButton);
         }
     });
 }

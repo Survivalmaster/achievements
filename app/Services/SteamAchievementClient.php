@@ -59,7 +59,8 @@ class SteamAchievementClient
 
     public function syncAchievements(SteamGame $game): SteamGame
     {
-        $schemaAchievements = $this->schemaAchievements($game->appid);
+        $schema = $this->schema($game->appid);
+        $schemaAchievements = $schema['achievements'] ?? [];
 
         if ($schemaAchievements === []) {
             $game->update([
@@ -72,12 +73,15 @@ class SteamAchievementClient
         }
 
         $playerAchievements = collect($this->playerAchievements($game->appid))->keyBy('apiname');
+        $playerStats = collect($this->playerStats($game->appid))->keyBy('name');
+        $schemaStats = collect($schema['stats'] ?? [])->keyBy('name');
         $globalPercentages = collect($this->globalPercentages($game->appid))->keyBy('name');
 
-        DB::transaction(function () use ($game, $schemaAchievements, $playerAchievements, $globalPercentages): void {
+        DB::transaction(function () use ($game, $schemaAchievements, $playerAchievements, $playerStats, $schemaStats, $globalPercentages): void {
             foreach ($schemaAchievements as $achievement) {
                 $player = $playerAchievements->get($achievement['name'], []);
                 $global = $globalPercentages->get($achievement['name'], []);
+                $progress = $this->achievementProgress($achievement, $player, $playerStats, $schemaStats);
 
                 SteamAchievement::updateOrCreate(
                     [
@@ -93,6 +97,8 @@ class SteamAchievementClient
                         'achieved' => (bool) ($player['achieved'] ?? false),
                         'unlock_time' => ($player['unlocktime'] ?? 0) > 0 ? $player['unlocktime'] : null,
                         'global_percent' => Arr::has($global, 'percent') ? round((float) $global['percent'], 3) : null,
+                        'progress_current' => $progress['current'],
+                        'progress_target' => $progress['target'],
                     ],
                 );
             }
@@ -179,6 +185,47 @@ class SteamAchievementClient
     }
 
     /**
+     * @return array{attempted:int,synced:int,failed:int,remaining:int,next_after_id:int,total:int}
+     */
+    public function refreshAllAchievementBatch(int $afterId = 0, int $limit = 15): array
+    {
+        $limit = max(1, min($limit, 50));
+        $this->apiKey();
+        $this->steamId();
+
+        $baseQuery = $this->refreshableGamesQuery();
+        $total = (clone $baseQuery)->count();
+        $games = (clone $baseQuery)
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+        $synced = 0;
+        $failed = 0;
+        $nextAfterId = $afterId;
+
+        foreach ($games as $game) {
+            $nextAfterId = max($nextAfterId, $game->id);
+
+            try {
+                $this->syncAchievements($game);
+                $synced++;
+            } catch (Throwable) {
+                $failed++;
+            }
+        }
+
+        return [
+            'attempted' => $games->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+            'remaining' => (clone $baseQuery)->where('id', '>', $nextAfterId)->count(),
+            'next_after_id' => $nextAfterId,
+            'total' => $total,
+        ];
+    }
+
+    /**
      * @return Collection<int, SteamGame>
      */
     private function activeRefreshGames(int $limit): Collection
@@ -199,6 +246,16 @@ class SteamAchievementClient
             ->orderBy('achievements_synced_at')
             ->limit($limit)
             ->get();
+    }
+
+    private function refreshableGamesQuery()
+    {
+        return SteamGame::query()
+            ->where('user_id', Auth::id())
+            ->where(function ($query): void {
+                $query->where('achievements_total', '>', 0)
+                    ->orWhereNull('achievements_synced_at');
+            });
     }
 
     public function playerSummary(string $steamId): array
@@ -249,14 +306,14 @@ class SteamAchievementClient
         return $this->playerAchievements($appid, $steamId);
     }
 
-    private function schemaAchievements(int $appid): array
+    private function schema(int $appid): array
     {
         return $this->http()->get('https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/', [
             'key' => $this->apiKey(),
             'appid' => $appid,
             'l' => config('services.steam.language'),
             'format' => 'json',
-        ])->throw()->json('game.availableGameStats.achievements', []);
+        ])->throw()->json('game.availableGameStats', []);
     }
 
     private function playerAchievements(int $appid, ?string $steamId = null): array
@@ -270,6 +327,109 @@ class SteamAchievementClient
         ])->throw()->json('playerstats', []);
 
         return ($response['success'] ?? true) ? ($response['achievements'] ?? []) : [];
+    }
+
+    private function playerStats(int $appid): array
+    {
+        try {
+            $response = $this->http()->get('https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/', [
+                'key' => $this->apiKey(),
+                'steamid' => $this->steamId(),
+                'appid' => $appid,
+                'format' => 'json',
+            ])->throw()->json('playerstats', []);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return ($response['success'] ?? true) ? ($response['stats'] ?? []) : [];
+    }
+
+    private function achievementProgress(array $achievement, array $player, Collection $playerStats, Collection $schemaStats): array
+    {
+        $current = $this->firstNumeric($player, ['curprogress', 'currentprogress', 'current', 'progress', 'value']);
+        $target = $this->firstNumeric($player, ['maxprogress', 'targetprogress', 'target', 'max']);
+
+        if ($current === null) {
+            $statName = $this->progressStatName($achievement, $schemaStats);
+            $stat = $statName ? $playerStats->get($statName) : null;
+            $current = $this->firstNumeric($stat ?? [], ['value']);
+        }
+
+        $target ??= $this->firstNumeric($achievement, ['maxprogress', 'targetprogress', 'target', 'max', 'unlockvalue', 'unlock_value', 'threshold']);
+        $target ??= $this->targetFromText($achievement['description'] ?? null);
+
+        if ($current === null || $target === null || $target <= 0) {
+            return ['current' => null, 'target' => null];
+        }
+
+        return [
+            'current' => max(0, min($current, $target)),
+            'target' => $target,
+        ];
+    }
+
+    private function progressStatName(array $achievement, Collection $schemaStats): ?string
+    {
+        $direct = Arr::first([
+            $achievement['progressStat'] ?? null,
+            $achievement['progress_stat'] ?? null,
+            $achievement['progress_stat_name'] ?? null,
+            $achievement['stat'] ?? null,
+            $achievement['stat_name'] ?? null,
+        ], fn ($value) => is_string($value) && $value !== '');
+
+        if ($direct && $schemaStats->has($direct)) {
+            return $direct;
+        }
+
+        $candidates = collect([
+            $achievement['name'] ?? null,
+            $achievement['displayName'] ?? null,
+        ])
+            ->filter()
+            ->map(fn (string $value): string => $this->normalizedStatName($value));
+
+        foreach ($schemaStats as $name => $stat) {
+            $normalized = $this->normalizedStatName((string) $name);
+
+            if ($candidates->contains($normalized)) {
+                return (string) $name;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizedStatName(string $value): string
+    {
+        return preg_replace('/[^a-z0-9]/', '', strtolower($value)) ?? '';
+    }
+
+    private function firstNumeric(?array $source, array $keys): ?int
+    {
+        if (! $source) {
+            return null;
+        }
+
+        foreach ($keys as $key) {
+            if (Arr::has($source, $key) && is_numeric($source[$key])) {
+                return (int) $source[$key];
+            }
+        }
+
+        return null;
+    }
+
+    private function targetFromText(?string $text): ?int
+    {
+        if (! $text || ! preg_match_all('/\b\d{1,9}\b/', $text, $matches)) {
+            return null;
+        }
+
+        $numbers = array_map('intval', $matches[0]);
+
+        return max($numbers) ?: null;
     }
 
     private function globalPercentages(int $appid): array

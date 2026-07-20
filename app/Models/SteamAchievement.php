@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'achieved',
     'unlock_time',
     'global_percent',
+    'progress_current',
+    'progress_target',
 ])]
 class SteamAchievement extends Model
 {
@@ -28,6 +30,8 @@ class SteamAchievement extends Model
             'achieved' => 'boolean',
             'unlock_time' => 'integer',
             'global_percent' => 'decimal:3',
+            'progress_current' => 'integer',
+            'progress_target' => 'integer',
         ];
     }
 
@@ -61,5 +65,22 @@ class SteamAchievement extends Model
             $percent > 0 && $percent <= 10 => 'rarity-rare',
             default => '',
         };
+    }
+
+    public function getHasProgressAttribute(): bool
+    {
+        return $this->progress_current !== null
+            && $this->progress_target !== null
+            && $this->progress_target > 0
+            && $this->progress_current < $this->progress_target;
+    }
+
+    public function getProgressPercentAttribute(): int
+    {
+        if (! $this->has_progress) {
+            return 0;
+        }
+
+        return min(100, (int) round(($this->progress_current / $this->progress_target) * 100));
     }
 }

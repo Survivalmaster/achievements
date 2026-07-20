@@ -182,6 +182,12 @@ class DashboardController extends Controller
             'gameCounts' => $gameCounts,
             'configured' => (bool) config('services.steam.api_key'),
             'unsyncedGames' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
+            'refreshableGames' => SteamGame::where('user_id', Auth::id())
+                ->where(function ($query): void {
+                    $query->where('achievements_total', '>', 0)
+                        ->orWhereNull('achievements_synced_at');
+                })
+                ->count(),
             'spoilerSafe' => $spoilerSafe,
             'recentAchievements' => $this->recentAchievements(),
             'roadmapGames' => $this->roadmapGames(),
@@ -239,6 +245,37 @@ class DashboardController extends Controller
         }
 
         return back()->with('status', "{$message}. {$result['remaining']} games left to check.");
+    }
+
+    public function refreshAllAchievements(Request $request, SteamAchievementClient $steam): RedirectResponse|JsonResponse
+    {
+        $afterId = max(0, (int) $request->input('after_id', 0));
+
+        try {
+            if ($afterId === 0) {
+                $steam->syncLibrary();
+            }
+
+            $result = $steam->refreshAllAchievementBatch($afterId, 15);
+        } catch (Throwable $exception) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $this->message($exception)], 500);
+            }
+
+            return back()->with('error', $this->message($exception));
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($result);
+        }
+
+        $message = "Refreshed {$result['synced']} games";
+
+        if ($result['failed'] > 0) {
+            $message .= " ({$result['failed']} failed)";
+        }
+
+        return back()->with('status', "{$message}. {$result['remaining']} games left to refresh.");
     }
 
     public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
