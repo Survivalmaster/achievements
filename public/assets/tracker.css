@@ -455,6 +455,7 @@ a {
 
 .main-badge,
 .completed-badge,
+.stale-badge,
 .played-date {
     display: inline-block;
     margin-left: .35rem;
@@ -484,6 +485,12 @@ a {
     border: 1px solid rgba(255, 204, 87, .48);
     background: rgba(255, 204, 87, .13);
     color: #ffcc57;
+}
+
+.stale-badge {
+    border: 1px solid rgba(255, 159, 47, .45);
+    background: rgba(255, 159, 47, .12);
+    color: #ffbd72;
 }
 
 .progress-ring {
@@ -844,6 +851,42 @@ a {
     margin-top: .7rem;
 }
 
+.compare-summary,
+.refresh-status-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .45rem;
+    margin: .7rem 0;
+}
+
+.refresh-status-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compare-summary div,
+.refresh-status-grid div {
+    border: 1px solid var(--line);
+    border-radius: .4rem;
+    background: rgba(255, 255, 255, .035);
+    padding: .55rem;
+}
+
+.compare-summary strong,
+.compare-summary span,
+.refresh-status-grid strong,
+.refresh-status-grid span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compare-summary span,
+.refresh-status-grid span {
+    color: var(--muted);
+    font-size: .72rem;
+}
+
 .compare-grid div {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1028,6 +1071,21 @@ a {
     grid-column: span 2;
 }
 
+.dashboard-command-grid {
+    margin-bottom: .9rem;
+}
+
+.mini-action {
+    border: 1px solid rgba(95, 212, 255, .35);
+    border-radius: .35rem;
+    background: rgba(95, 212, 255, .1);
+    color: var(--text);
+    cursor: pointer;
+    font-size: .72rem;
+    font-weight: 800;
+    padding: .28rem .5rem;
+}
+
 .tool-heading {
     display: flex;
     align-items: center;
@@ -1080,7 +1138,7 @@ a {
 
 .achievement-plan {
     align-items: center;
-    grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 1.1fr) 4rem;
+    grid-template-columns: 7rem 7rem minmax(0, .8fr) minmax(0, 1fr) 4rem;
     margin-top: .65rem;
 }
 
@@ -1216,6 +1274,10 @@ a {
     font-size: .68rem;
     font-weight: 800;
     text-transform: uppercase;
+}
+
+.info-pill {
+    color: #b8e8ff;
 }
 
 .achievement-copy p {
@@ -1398,6 +1460,7 @@ a {
     .achievement-plan,
     .tool-grid,
     .compare-form,
+    .compare-summary,
     .compare-grid,
     .recent-achievements {
         grid-template-columns: 1fr;

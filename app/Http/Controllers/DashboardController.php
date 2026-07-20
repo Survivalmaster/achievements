@@ -65,6 +65,7 @@ class DashboardController extends Controller
         $compareUser = null;
         $comparison = collect();
         $compareProfile = null;
+        $compareStats = null;
 
         if (is_string($compareSteamId) && preg_match('/^\d{17}$/', $compareSteamId)) {
             $compareUser = $friends->firstWhere('steam_id', $compareSteamId);
@@ -91,6 +92,13 @@ class DashboardController extends Controller
                             'friend' => (bool) ($friend?->achieved ?? false),
                         ];
                     });
+                $compareStats = [
+                    'you' => "{$game->achievements_unlocked}/{$game->achievements_total}",
+                    'friend' => $friendGame ? "{$friendGame->achievements_unlocked}/{$friendGame->achievements_total}" : 'No data',
+                    'both_missing' => $comparison->filter(fn ($row) => ! $row['you'] && ! $row['friend'])->count(),
+                    'only_you' => $comparison->filter(fn ($row) => $row['you'] && ! $row['friend'])->count(),
+                    'only_friend' => $comparison->filter(fn ($row) => ! $row['you'] && $row['friend'])->count(),
+                ];
             }
         }
 
@@ -106,6 +114,7 @@ class DashboardController extends Controller
             'compareSteamId' => $compareSteamId,
             'compareProfile' => $compareProfile,
             'compareUser' => $compareUser,
+            'compareStats' => $compareStats,
             'comparison' => $comparison,
         ]);
     }
@@ -197,6 +206,9 @@ class DashboardController extends Controller
             'rarestMissing' => $this->rareAchievements(false),
             'plannedAchievements' => $this->plannedAchievements(),
             'tonightAchievements' => $this->tonightAchievements(),
+            'refreshStatus' => $this->refreshStatus(),
+            'friendActivity' => $this->friendActivity(),
+            'staleGames' => $this->staleGames(),
         ];
     }
 
@@ -232,15 +244,20 @@ class DashboardController extends Controller
             return back()->with('error', $this->message($exception));
         }
 
-        if ($request->expectsJson()) {
-            return response()->json($result);
-        }
-
         if ($result['attempted'] === 0) {
+            if ($request->expectsJson()) {
+                return response()->json($result);
+            }
+
             return back()->with('status', 'All games have achievement data checked.');
         }
 
         $message = ($result['refreshed'] ?? false) ? "Refreshed {$result['synced']} games" : "Checked {$result['synced']} games";
+        $this->recordRefreshStatus('Sync Achievements', $result['attempted'], $result['synced'], $result['failed']);
+
+        if ($request->expectsJson()) {
+            return response()->json($result);
+        }
 
         if ($result['failed'] > 0) {
             $message .= " ({$result['failed']} failed)";
@@ -268,10 +285,12 @@ class DashboardController extends Controller
         }
 
         if ($request->expectsJson()) {
+            $this->recordRefreshStatus('Refresh All Games', $result['attempted'], $result['synced'], $result['failed']);
             return response()->json($result);
         }
 
         $message = "Refreshed {$result['synced']} games";
+        $this->recordRefreshStatus('Refresh All Games', $result['attempted'], $result['synced'], $result['failed']);
 
         if ($result['failed'] > 0) {
             $message .= " ({$result['failed']} failed)";
@@ -285,7 +304,7 @@ class DashboardController extends Controller
         $key = 'quick_refresh:'.Auth::id();
         $lastRefresh = TrackerSetting::value($key);
 
-        if ($lastRefresh && now()->diffInMinutes(Carbon::parse($lastRefresh)) < 5) {
+        if ($lastRefresh && Carbon::parse($lastRefresh)->gt(now()->subMinutes(5))) {
             return response()->json([
                 'skipped' => true,
                 'message' => 'Recent refresh already ran.',
@@ -320,11 +339,16 @@ class DashboardController extends Controller
             return response()->json(['message' => $this->message($exception)], 500);
         }
 
+        $attempted = $result['attempted'] + $focusedSynced + $focusedFailed;
+        $synced = $result['synced'] + $focusedSynced;
+        $failed = $result['failed'] + $focusedFailed;
+        $this->recordRefreshStatus('Quick Refresh', $attempted, $synced, $failed);
+
         return response()->json([
             ...$result,
-            'attempted' => $result['attempted'] + $focusedSynced + $focusedFailed,
-            'synced' => $result['synced'] + $focusedSynced,
-            'failed' => $result['failed'] + $focusedFailed,
+            'attempted' => $attempted,
+            'synced' => $synced,
+            'failed' => $failed,
             'skipped' => false,
         ]);
     }
@@ -334,6 +358,7 @@ class DashboardController extends Controller
         $this->authorizeGame($game);
         $beforeUnlocked = $game->achievements_unlocked;
         $beforeTotal = $game->achievements_total;
+        $beforeAchievements = $game->achievements()->where('achieved', true)->pluck('name')->all();
 
         try {
             $steam->syncLibrary();
@@ -343,12 +368,33 @@ class DashboardController extends Controller
         }
 
         $game->refresh();
+        $afterAchievements = $game->achievements()->where('achieved', true)->pluck('name')->all();
+        $newUnlocks = collect($afterAchievements)->diff($beforeAchievements)->values();
+        $this->recordRefreshStatus("Refresh {$game->name}", 1, 1, 0);
 
         if ($game->achievements_unlocked > $beforeUnlocked || $game->achievements_total !== $beforeTotal) {
-            return back()->with('status', "Updated {$game->name}: {$game->achievements_unlocked}/{$game->achievements_total} achievements unlocked.");
+            $detail = $newUnlocks->isNotEmpty() ? ' New: '.$newUnlocks->take(3)->implode(', ').($newUnlocks->count() > 3 ? '...' : '').'.' : '';
+
+            return back()->with('status', "Updated {$game->name}: {$game->achievements_unlocked}/{$game->achievements_total} achievements unlocked.{$detail}");
         }
 
         return back()->with('status', "Steam returned no new unlocks for {$game->name}. Still {$game->achievements_unlocked}/{$game->achievements_total} unlocked.");
+    }
+
+    public function startHuntSession(): RedirectResponse
+    {
+        $this->tonightAchievements()->each(function (SteamAchievement $achievement): void {
+            $achievement->huntSetting()->updateOrCreate(
+                ['steam_achievement_id' => $achievement->id],
+                [
+                    'status' => 'target',
+                    'note' => $achievement->huntSetting?->note,
+                    'tags' => $achievement->huntSetting?->tags,
+                ],
+            );
+        });
+
+        return back()->with('status', "Tonight's Hunt targets marked.");
     }
 
     public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam): RedirectResponse
@@ -404,12 +450,17 @@ class DashboardController extends Controller
         $this->authorizeAchievement($achievement);
         $supportsManualProgress = Schema::hasColumn('achievement_hunt_settings', 'manual_progress_current')
             && Schema::hasColumn('achievement_hunt_settings', 'manual_progress_target');
+        $supportsAchievementDifficulty = Schema::hasColumn('achievement_hunt_settings', 'difficulty');
 
         $rules = [
             'status' => ['required', 'in:'.implode(',', AchievementHuntSetting::STATUSES)],
             'note' => ['nullable', 'string', 'max:1200'],
             'tags' => ['nullable', 'string', 'max:255'],
         ];
+
+        if ($supportsAchievementDifficulty) {
+            $rules['difficulty'] = ['nullable', 'in:'.implode(',', AchievementHuntSetting::DIFFICULTIES)];
+        }
 
         if ($supportsManualProgress) {
             $rules['manual_progress_current'] = ['nullable', 'integer', 'min:0'];
@@ -433,6 +484,10 @@ class DashboardController extends Controller
             'note' => $data['note'] ?? null,
             'tags' => $data['tags'] ?? null,
         ];
+
+        if ($supportsAchievementDifficulty) {
+            $values['difficulty'] = $data['difficulty'] ?? null;
+        }
 
         if ($supportsManualProgress) {
             $values['manual_progress_current'] = $data['manual_progress_current'] ?? null;
@@ -660,6 +715,72 @@ class DashboardController extends Controller
             ->orderByDesc('unlock_time')
             ->limit(12)
             ->get();
+    }
+
+    private function friendActivity()
+    {
+        return SteamAchievement::query()
+            ->with(['game.user'])
+            ->where('achieved', true)
+            ->where('unlock_time', '>=', now()->subDay()->timestamp)
+            ->whereHas('game', fn ($query) => $query->where('user_id', '!=', Auth::id()))
+            ->orderByDesc('unlock_time')
+            ->limit(8)
+            ->get();
+    }
+
+    private function staleGames()
+    {
+        return SteamGame::query()
+            ->where('user_id', Auth::id())
+            ->where('achievements_total', '>', 0)
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_synced_at', '<', now()->subDay());
+            })
+            ->orderBy('achievements_synced_at')
+            ->limit(6)
+            ->get();
+    }
+
+    private function refreshStatus(): array
+    {
+        $payload = TrackerSetting::value('refresh_status:'.Auth::id());
+
+        if (! $payload) {
+            return [
+                'label' => 'Not run yet',
+                'checked' => 0,
+                'synced' => 0,
+                'failed' => 0,
+                'ran_at' => null,
+            ];
+        }
+
+        $status = json_decode($payload, true) ?: [];
+        $ranAt = isset($status['ran_at']) ? Carbon::parse($status['ran_at']) : null;
+
+        return [
+            'label' => $status['label'] ?? 'Refresh',
+            'checked' => (int) ($status['checked'] ?? 0),
+            'synced' => (int) ($status['synced'] ?? 0),
+            'failed' => (int) ($status['failed'] ?? 0),
+            'ran_at' => $ranAt,
+        ];
+    }
+
+    private function recordRefreshStatus(string $label, int $checked, int $synced, int $failed): void
+    {
+        TrackerSetting::query()->updateOrCreate(
+            ['key' => 'refresh_status:'.Auth::id()],
+            ['value' => json_encode([
+                'label' => $label,
+                'checked' => $checked,
+                'synced' => $synced,
+                'failed' => $failed,
+                'ran_at' => now()->toIso8601String(),
+            ])],
+        );
     }
 
     private function friends(SteamAchievementClient $steam)

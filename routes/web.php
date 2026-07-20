@@ -17,6 +17,7 @@ Route::middleware('dashboard.auth')->group(function (): void {
     Route::post('/sync/achievements', [DashboardController::class, 'syncAchievements'])->name('sync.achievements');
     Route::post('/sync/refresh-all', [DashboardController::class, 'refreshAllAchievements'])->name('sync.refresh-all');
     Route::post('/sync/quick-refresh', [DashboardController::class, 'quickRefreshAchievements'])->name('sync.quick-refresh');
+    Route::post('/hunt-session/start', [DashboardController::class, 'startHuntSession'])->name('hunt-session.start');
     Route::post('/spoilers', [DashboardController::class, 'updateSpoilers'])->name('spoilers.update');
     Route::get('/games/{game}', [DashboardController::class, 'showGame'])->name('games.show');
     Route::post('/games/{game}/current', [DashboardController::class, 'setCurrent'])->name('games.current');

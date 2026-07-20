@@ -103,6 +103,9 @@
                                     @if ($game->is_completed)
                                         <span class="completed-badge">Completed</span>
                                     @endif
+                                    @if ($game->achievements_synced_at && $game->achievements_synced_at->lt(now()->subDay()))
+                                        <span class="stale-badge">Stale</span>
+                                    @endif
                                 </small>
                             </span>
                             <span class="progress-ring" style="--value: {{ $game->completion_percent }}%">{{ $game->completion_percent }}</span>
@@ -149,6 +152,71 @@
                     <div><strong>{{ number_format($overview['targets']) }}</strong><span>Targets marked</span></div>
                 </section>
 
+                <section class="command-grid dashboard-command-grid">
+                    <article class="command-panel">
+                        <h3>Completion Roadmap</h3>
+                        @forelse ($roadmapGames as $game)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
+                            </a>
+                        @empty
+                            <p>No in-progress games yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <div class="tool-heading">
+                            <h3>Tonight's Hunt</h3>
+                            <form method="POST" action="{{ route('hunt-session.start') }}">
+                                @csrf
+                                <button class="mini-action" type="submit">Start</button>
+                            </form>
+                        </div>
+                        @forelse ($tonightAchievements as $achievement)
+                            @php
+                                $huntReason = match (true) {
+                                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Target',
+                                    $achievement->game?->last_played_at && $achievement->game->last_played_at->diffInDays(now()) <= 14 => 'Recently played',
+                                    $achievement->game && $achievement->game->achievements_total - $achievement->game->achievements_unlocked <= 5 => 'Close completion',
+                                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 10 => 'Rare missing',
+                                    default => 'Good next pick',
+                                };
+                            @endphp
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
+                            </a>
+                        @empty
+                            <p>Mark targets to shape this list.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <h3>Rarest Missing</h3>
+                        @forelse ($rarestMissing as $achievement)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
+                            </a>
+                        @empty
+                            <p>No missing rarity data yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel">
+                        <h3>Rarest Unlocked</h3>
+                        @forelse ($rarestUnlocked as $achievement)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                <strong>{{ $achievement->name }}</strong>
+                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
+                            </a>
+                        @empty
+                            <p>No unlocked rarity data yet.</p>
+                        @endforelse
+                    </article>
+                </section>
+
                 <section class="analytics-grid">
                     <article class="analytics-panel wide">
                         <div class="tool-heading">
@@ -179,14 +247,36 @@
                     </article>
 
                     <article class="analytics-panel">
-                        <div class="tool-heading"><h3>Closest Completions</h3></div>
-                        @forelse ($roadmapGames as $game)
+                        <div class="tool-heading"><h3>Refresh Status</h3><span class="soft-label">{{ $refreshStatus['ran_at'] ? $refreshStatus['ran_at']->diffForHumans() : 'Not run yet' }}</span></div>
+                        <div class="refresh-status-grid">
+                            <div><strong>{{ $refreshStatus['checked'] }}</strong><span>Checked</span></div>
+                            <div><strong>{{ $refreshStatus['synced'] }}</strong><span>Updated</span></div>
+                            <div><strong>{{ $refreshStatus['failed'] }}</strong><span>Failed</span></div>
+                        </div>
+                        <p>{{ $refreshStatus['label'] }}</p>
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Friend Activity</h3><span class="soft-label">Last 24 hours</span></div>
+                        @forelse ($friendActivity as $achievement)
+                            <div class="mini-row">
+                                <strong>{{ $achievement->game->user?->name }} unlocked {{ $achievement->name }}</strong>
+                                <span>{{ $achievement->game->name }}</span>
+                            </div>
+                        @empty
+                            <p>No tracker friend unlocks today.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Stale Data</h3></div>
+                        @forelse ($staleGames as $game)
                             <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
                                 <strong>{{ $game->name }}</strong>
-                                <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
+                                <span>{{ $game->achievements_synced_at?->diffForHumans() ?? 'Never' }}</span>
                             </a>
                         @empty
-                            <p>No roadmap data yet.</p>
+                            <p>All tracked games refreshed recently.</p>
                         @endforelse
                     </article>
 
@@ -199,39 +289,6 @@
                             </a>
                         @empty
                             <p>No last-played dates from Steam yet.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="analytics-panel">
-                        <div class="tool-heading"><h3>Most Played</h3></div>
-                        @forelse ($overview['top_playtime'] as $game)
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter]) }}">
-                                <strong>{{ $game->name }}</strong>
-                                <span>{{ $game->playtime_hours }}h</span>
-                            </a>
-                        @empty
-                            <p>No playtime data yet.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="analytics-panel">
-                        <div class="tool-heading"><h3>Tonight's Hunt</h3></div>
-                        @forelse ($tonightAchievements as $achievement)
-                            @php
-                                $huntReason = match (true) {
-                                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Target',
-                                    $achievement->game?->last_played_at && $achievement->game->last_played_at->diffInDays(now()) <= 14 => 'Recently played',
-                                    $achievement->game && $achievement->game->achievements_total - $achievement->game->achievements_unlocked <= 5 => 'Close completion',
-                                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 10 => 'Rare missing',
-                                    default => 'Good next pick',
-                                };
-                            @endphp
-                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
-                                <strong>{{ $achievement->name }}</strong>
-                                <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
-                            </a>
-                        @empty
-                            <p>Mark targets to shape this list.</p>
                         @endforelse
                     </article>
 
@@ -357,6 +414,15 @@
                         <button type="submit">Compare</button>
                     </form>
                     @if ($comparison->isNotEmpty())
+                        @if ($compareStats)
+                            <div class="compare-summary">
+                                <div><strong>{{ $compareStats['you'] }}</strong><span>You</span></div>
+                                <div><strong>{{ $compareStats['friend'] }}</strong><span>{{ $compareProfile->name }}</span></div>
+                                <div><strong>{{ $compareStats['both_missing'] }}</strong><span>Both missing</span></div>
+                                <div><strong>{{ $compareStats['only_you'] }}</strong><span>Only you</span></div>
+                                <div><strong>{{ $compareStats['only_friend'] }}</strong><span>Only friend</span></div>
+                            </div>
+                        @endif
                         <div class="compare-grid">
                             @foreach ($comparison->take(12) as $row)
                                 <div>
@@ -367,77 +433,6 @@
                             @endforeach
                         </div>
                     @endif
-                </section>
-
-                <section class="command-grid">
-                    <article class="command-panel">
-                        <h3>Completion Roadmap</h3>
-                        @forelse ($roadmapGames as $game)
-                            <div class="mini-row">
-                                <strong>{{ $game->name }}</strong>
-                                <span>{{ $game->achievements_total - $game->achievements_unlocked }} left</span>
-                            </div>
-                        @empty
-                            <p>No in-progress games with achievement data yet.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="command-panel">
-                        <h3>Tonight's Hunt</h3>
-                        @forelse ($tonightAchievements as $achievement)
-                            @php
-                                $huntReason = match (true) {
-                                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Target',
-                                    $achievement->game?->last_played_at && $achievement->game->last_played_at->diffInDays(now()) <= 14 => 'Recently played',
-                                    $achievement->game && $achievement->game->achievements_total - $achievement->game->achievements_unlocked <= 5 => 'Close completion',
-                                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 10 => 'Rare missing',
-                                    default => 'Good next pick',
-                                };
-                            @endphp
-                            <div class="mini-row">
-                                <strong>{{ $achievement->name }}</strong>
-                                <span>{{ $huntReason }} / {{ $achievement->game->name }}</span>
-                            </div>
-                        @empty
-                            <p>Mark targets or sync more achievements.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="command-panel">
-                        <h3>Rarest Missing</h3>
-                        @forelse ($rarestMissing as $achievement)
-                            <div class="mini-row">
-                                <strong>{{ $achievement->name }}</strong>
-                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
-                            </div>
-                        @empty
-                            <p>No missing rarity data yet.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="command-panel">
-                        <h3>Rarest Unlocked</h3>
-                        @forelse ($rarestUnlocked as $achievement)
-                            <div class="mini-row">
-                                <strong>{{ $achievement->name }}</strong>
-                                <span>{{ rtrim(rtrim(number_format((float) $achievement->global_percent, 2), '0'), '.') }}%</span>
-                            </div>
-                        @empty
-                            <p>No unlocked rarity data yet.</p>
-                        @endforelse
-                    </article>
-
-                    <article class="command-panel wide">
-                        <h3>Achievement Planner</h3>
-                        @forelse ($plannedAchievements as $achievement)
-                            <div class="mini-row">
-                                <strong>{{ $achievement->name }}</strong>
-                                <span>{{ ucfirst($achievement->huntSetting?->status ?? 'target') }} / {{ $achievement->game->name }}</span>
-                            </div>
-                        @empty
-                            <p>Use the planner controls on achievements to build this list.</p>
-                        @endforelse
-                    </article>
                 </section>
 
                 <div class="filters">
@@ -451,6 +446,13 @@
                         @php
                             $masked = $spoilerSafe && $achievement->hidden && ! $achievement->achieved;
                             $formId = "achievement-plan-{$achievement->id}";
+                            $tagSource = strtolower(($achievement->name ?? '').' '.($achievement->description ?? '').' '.($achievement->huntSetting?->tags ?? ''));
+                            $achievementTags = collect([
+                                str_contains($tagSource, 'dlc') || str_contains($tagSource, 'episode') || str_contains($tagSource, 'chapter') ? 'DLC?' : null,
+                                str_contains($tagSource, 'missable') ? 'Missable' : null,
+                                str_contains($tagSource, 'multiplayer') || str_contains($tagSource, 'co-op') || str_contains($tagSource, 'coop') ? 'Multiplayer' : null,
+                                $achievement->huntSetting?->difficulty ? ucfirst($achievement->huntSetting->difficulty) : null,
+                            ])->filter();
                         @endphp
                         <article class="achievement-card {{ $achievement->achieved ? 'unlocked' : 'locked' }} {{ $achievement->rarity_class }}">
                             <div class="achievement-icon" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
@@ -466,6 +468,9 @@
                                     @if ($achievement->hidden)
                                         <span class="secret-pill">Secret</span>
                                     @endif
+                                    @foreach ($achievementTags as $tag)
+                                        <span class="secret-pill info-pill">{{ $tag }}</span>
+                                    @endforeach
                                 </div>
                                 <p>{{ $masked ? 'Spoiler hidden. Toggle spoiler-safe mode to reveal this one.' : ($achievement->description ?: 'No description supplied by Steam.') }}</p>
                                 <div class="achievement-meta">
@@ -501,6 +506,12 @@
                                     <select name="status">
                                         @foreach (['none' => 'No plan', 'target' => 'Target', 'later' => 'Later', 'ignore' => 'Ignore'] as $key => $label)
                                             <option value="{{ $key }}" @selected(($achievement->huntSetting?->status ?? 'none') === $key)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <select name="difficulty">
+                                        <option value="">Difficulty</option>
+                                        @foreach (['easy' => 'Easy', 'normal' => 'Normal', 'hard' => 'Hard', 'grind' => 'Grind', 'buggy' => 'Buggy', 'multiplayer' => 'Multiplayer', 'missable' => 'Missable'] as $key => $label)
+                                            <option value="{{ $key }}" @selected(($achievement->huntSetting?->difficulty ?? '') === $key)>{{ $label }}</option>
                                         @endforeach
                                     </select>
                                     <input name="tags" value="{{ $achievement->huntSetting?->tags }}" placeholder="Tags">
