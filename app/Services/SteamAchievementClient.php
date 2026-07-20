@@ -76,12 +76,14 @@ class SteamAchievementClient
         $playerStats = collect($this->playerStats($game->appid))->keyBy('name');
         $schemaStats = collect($schema['stats'] ?? [])->keyBy('name');
         $globalPercentages = collect($this->globalPercentages($game->appid))->keyBy('name');
+        $communityProgress = $this->communityAchievementProgress($game->appid);
 
-        DB::transaction(function () use ($game, $schemaAchievements, $playerAchievements, $playerStats, $schemaStats, $globalPercentages): void {
+        DB::transaction(function () use ($game, $schemaAchievements, $playerAchievements, $playerStats, $schemaStats, $globalPercentages, $communityProgress): void {
             foreach ($schemaAchievements as $achievement) {
                 $player = $playerAchievements->get($achievement['name'], []);
                 $global = $globalPercentages->get($achievement['name'], []);
                 $progress = $this->achievementProgress($achievement, $player, $playerStats, $schemaStats);
+                $progress = $this->mergeCommunityProgress($progress, $achievement, $communityProgress);
 
                 SteamAchievement::updateOrCreate(
                     [
@@ -372,6 +374,90 @@ class SteamAchievementClient
             'current' => max(0, min($current, $target)),
             'target' => $target,
         ];
+    }
+
+    private function mergeCommunityProgress(array $progress, array $achievement, Collection $communityProgress): array
+    {
+        if ($progress['current'] !== null && $progress['target'] !== null) {
+            return $progress;
+        }
+
+        $key = $this->achievementProgressKey($achievement);
+        $match = $communityProgress->first(function (array $candidate) use ($key): bool {
+            return str_contains($candidate['key'], $key) || str_contains($key, $candidate['key']);
+        });
+
+        if (! $match) {
+            return $progress;
+        }
+
+        return [
+            'current' => $match['current'],
+            'target' => $match['target'],
+        ];
+    }
+
+    private function communityAchievementProgress(int $appid): Collection
+    {
+        try {
+            $html = $this->http()->get("https://steamcommunity.com/profiles/{$this->steamId()}/stats/{$appid}/achievements")->throw()->body();
+        } catch (Throwable) {
+            return collect();
+        }
+
+        if ($html === '') {
+            return collect();
+        }
+
+        return collect($this->communityAchievementBlocks($html))
+            ->map(function (string $block): ?array {
+                $text = $this->cleanHtmlText($block);
+
+                if (! preg_match('/\b([0-9][0-9,]*)\s*\/\s*([0-9][0-9,]*)\b/', $text, $matches)) {
+                    return null;
+                }
+
+                $current = (int) str_replace(',', '', $matches[1]);
+                $target = (int) str_replace(',', '', $matches[2]);
+
+                if ($target <= 0 || $current >= $target) {
+                    return null;
+                }
+
+                return [
+                    'key' => $this->normalizedStatName(preg_replace('/\b[0-9][0-9,]*\s*\/\s*[0-9][0-9,]*\b/', '', $text) ?? $text),
+                    'current' => max(0, min($current, $target)),
+                    'target' => $target,
+                ];
+            })
+            ->filter()
+            ->values();
+    }
+
+    private function communityAchievementBlocks(string $html): array
+    {
+        preg_match_all('/<div[^>]+class="[^"]*(?:achieveRow|achieveTxt|achieveUnlockTime|achieveInfo)[^"]*"[^>]*>.*?(?=<div[^>]+class="[^"]*(?:achieveRow|achieveTxt|achieveUnlockTime|achieveInfo)[^"]*"|$)/is', $html, $matches);
+
+        if (($matches[0] ?? []) !== []) {
+            return $matches[0];
+        }
+
+        preg_match_all('/<[^>]+>[^<]*(?:[0-9][0-9,]*\s*\/\s*[0-9][0-9,]*)[^<]*(?:<\/[^>]+>)?/i', $html, $matches);
+
+        return $matches[0] ?? [];
+    }
+
+    private function achievementProgressKey(array $achievement): string
+    {
+        return $this->normalizedStatName(implode(' ', array_filter([
+            $achievement['displayName'] ?? null,
+            $achievement['description'] ?? null,
+        ])));
+    }
+
+    private function cleanHtmlText(string $html): string
+    {
+        return trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5)) ?? '');
     }
 
     private function progressStatName(array $achievement, Collection $playerStats, Collection $schemaStats): ?string
