@@ -893,8 +893,12 @@ a {
     transition: width .22s ease;
 }
 
-.sync-progress.is-working span {
-    width: 34% !important;
+.sync-progress.is-working::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, rgba(95, 212, 255, .45), transparent);
     animation: sync-progress-sweep 1.05s ease-in-out infinite;
 }
 
@@ -906,11 +910,11 @@ a {
 
 @keyframes sync-progress-sweep {
     0% {
-        transform: translateX(-110%);
+        transform: translateX(-100%);
     }
 
     100% {
-        transform: translateX(310%);
+        transform: translateX(100%);
     }
 }
 
