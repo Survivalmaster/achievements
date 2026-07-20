@@ -70,7 +70,7 @@ class SteamAchievementClient
     public function syncAchievements(SteamGame $game): SteamGame
     {
         if ($game->platform_key !== SteamGame::PLATFORM_STEAM) {
-            throw new RuntimeException('This is not a Steam game.');
+            return $game->refresh();
         }
 
         $schema = $this->schema($game->appid);

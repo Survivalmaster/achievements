@@ -510,7 +510,7 @@ class DashboardController extends Controller
             try {
                 if ($game->platform_key === SteamGame::PLATFORM_PSN) {
                     $psn->syncGame($game);
-                } else {
+                } elseif ($game->platform_key === SteamGame::PLATFORM_STEAM) {
                     $steam->syncAchievements($game);
                 }
             } catch (Throwable $exception) {
