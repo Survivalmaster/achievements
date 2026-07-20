@@ -209,24 +209,17 @@ if (syncForm && syncModal) {
     });
 }
 
-document.querySelectorAll('.achievement-plan').forEach((form) => {
-    const currentInput = form.querySelector('[name="manual_progress_current"]');
-    const targetInput = form.querySelector('[name="manual_progress_target"]');
+document.querySelectorAll('[data-progress-slider]').forEach((slider) => {
+    const progress = slider.closest('.achievement-progress');
+    const form = document.getElementById(slider.getAttribute('form'));
 
-    if (!currentInput || !targetInput) {
+    if (!progress || !form) {
         return;
     }
 
     const updateManualProgress = () => {
-        const card = form.closest('.achievement-card');
-        const progress = card?.querySelector('.achievement-progress');
-
-        if (!progress) {
-            return;
-        }
-
-        const current = Number.parseInt(currentInput.value || currentInput.placeholder || '0', 10);
-        const target = Number.parseInt(targetInput.value || targetInput.placeholder || '0', 10);
+        const current = Number.parseInt(slider.value || '0', 10);
+        const target = Number.parseInt(slider.max || '0', 10);
 
         if (!Number.isFinite(current) || !Number.isFinite(target) || target <= 0) {
             return;
@@ -239,6 +232,9 @@ document.querySelectorAll('.achievement-plan').forEach((form) => {
         progress.querySelector('[data-progress-label]').textContent = `${cappedCurrent.toLocaleString()} / ${target.toLocaleString()}`;
     };
 
-    currentInput.addEventListener('input', updateManualProgress);
-    targetInput.addEventListener('input', updateManualProgress);
+    slider.addEventListener('input', updateManualProgress);
+    slider.addEventListener('change', () => {
+        updateManualProgress();
+        form.requestSubmit();
+    });
 });

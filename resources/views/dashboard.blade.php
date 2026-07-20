@@ -450,6 +450,7 @@
                     @forelse ($achievements as $achievement)
                         @php
                             $masked = $spoilerSafe && $achievement->hidden && ! $achievement->achieved;
+                            $formId = "achievement-plan-{$achievement->id}";
                         @endphp
                         <article class="achievement-card {{ $achievement->achieved ? 'unlocked' : 'locked' }} {{ $achievement->rarity_class }}">
                             <div class="achievement-icon" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
@@ -482,10 +483,20 @@
                                 @if ($achievement->has_progress)
                                     <div class="achievement-progress" style="--value: {{ $achievement->progress_percent }}%">
                                         <div><span></span></div>
+                                        <input
+                                            type="range"
+                                            name="manual_progress_current"
+                                            min="0"
+                                            max="{{ $achievement->progress_target_value }}"
+                                            value="{{ $achievement->progress_current_value }}"
+                                            form="{{ $formId }}"
+                                            data-progress-slider
+                                            aria-label="Achievement progress"
+                                        >
                                         <strong data-progress-label>{{ number_format($achievement->progress_current_value) }} / {{ number_format($achievement->progress_target_value) }}</strong>
                                     </div>
                                 @endif
-                                <form method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">
+                                <form id="{{ $formId }}" method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">
                                     @csrf
                                     <select name="status">
                                         @foreach (['none' => 'No plan', 'target' => 'Target', 'later' => 'Later', 'ignore' => 'Ignore'] as $key => $label)
@@ -494,11 +505,7 @@
                                     </select>
                                     <input name="tags" value="{{ $achievement->huntSetting?->tags }}" placeholder="Tags">
                                     <input name="note" value="{{ $achievement->huntSetting?->note }}" placeholder="Note">
-                                    <div class="manual-progress-inputs">
-                                        <input type="number" name="manual_progress_current" min="0" value="{{ $achievement->huntSetting?->manual_progress_current }}" placeholder="{{ $achievement->progress_current_value ?? 0 }}" aria-label="Current progress">
-                                        <span>/</span>
-                                        <input type="number" name="manual_progress_target" min="1" value="{{ $achievement->huntSetting?->manual_progress_target }}" placeholder="{{ $achievement->progress_target_value ?? 'Target' }}" aria-label="Target progress">
-                                    </div>
+                                    <input type="hidden" name="manual_progress_target" value="{{ $achievement->progress_target_value }}">
                                     <button type="submit">Save</button>
                                 </form>
                             </div>
