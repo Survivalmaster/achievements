@@ -356,7 +356,17 @@ class DashboardController extends Controller
             'status' => ['required', 'in:'.implode(',', AchievementHuntSetting::STATUSES)],
             'note' => ['nullable', 'string', 'max:1200'],
             'tags' => ['nullable', 'string', 'max:255'],
+            'manual_progress_current' => ['nullable', 'integer', 'min:0'],
+            'manual_progress_target' => ['nullable', 'integer', 'min:1'],
         ]);
+
+        if (
+            ($data['manual_progress_current'] ?? null) !== null
+            && ($data['manual_progress_target'] ?? null) !== null
+            && (int) $data['manual_progress_current'] > (int) $data['manual_progress_target']
+        ) {
+            $data['manual_progress_current'] = $data['manual_progress_target'];
+        }
 
         $achievement->huntSetting()->updateOrCreate(
             ['steam_achievement_id' => $achievement->id],
@@ -364,6 +374,8 @@ class DashboardController extends Controller
                 'status' => $data['status'],
                 'note' => $data['note'] ?? null,
                 'tags' => $data['tags'] ?? null,
+                'manual_progress_current' => $data['manual_progress_current'] ?? null,
+                'manual_progress_target' => $data['manual_progress_target'] ?? null,
             ],
         );
 

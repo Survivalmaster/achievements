@@ -482,7 +482,7 @@
                                 @if ($achievement->has_progress)
                                     <div class="achievement-progress" style="--value: {{ $achievement->progress_percent }}%">
                                         <div><span></span></div>
-                                        <strong>{{ number_format($achievement->progress_current_value) }} / {{ number_format($achievement->progress_target_value) }}</strong>
+                                        <strong data-progress-label>{{ number_format($achievement->progress_current_value) }} / {{ number_format($achievement->progress_target_value) }}</strong>
                                     </div>
                                 @endif
                                 <form method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">
@@ -494,6 +494,11 @@
                                     </select>
                                     <input name="tags" value="{{ $achievement->huntSetting?->tags }}" placeholder="Tags">
                                     <input name="note" value="{{ $achievement->huntSetting?->note }}" placeholder="Note">
+                                    <div class="manual-progress-inputs">
+                                        <input type="number" name="manual_progress_current" min="0" value="{{ $achievement->huntSetting?->manual_progress_current }}" placeholder="{{ $achievement->progress_current_value ?? 0 }}" aria-label="Current progress">
+                                        <span>/</span>
+                                        <input type="number" name="manual_progress_target" min="1" value="{{ $achievement->huntSetting?->manual_progress_target }}" placeholder="{{ $achievement->progress_target_value ?? 'Target' }}" aria-label="Target progress">
+                                    </div>
                                     <button type="submit">Save</button>
                                 </form>
                             </div>

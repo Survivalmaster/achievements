@@ -86,6 +86,10 @@ class SteamAchievement extends Model
 
     public function getProgressCurrentValueAttribute(): ?int
     {
+        if ($this->huntSetting?->manual_progress_current !== null) {
+            return $this->huntSetting->manual_progress_current;
+        }
+
         if ($this->progress_current !== null) {
             return $this->progress_current;
         }
@@ -95,6 +99,10 @@ class SteamAchievement extends Model
 
     public function getProgressTargetValueAttribute(): ?int
     {
+        if ($this->huntSetting?->manual_progress_target !== null) {
+            return $this->huntSetting->manual_progress_target;
+        }
+
         if ($this->progress_target !== null) {
             return $this->progress_target;
         }

@@ -1080,8 +1080,24 @@ a {
 
 .achievement-plan {
     align-items: center;
-    grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 1.2fr) 4rem;
+    grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 1.1fr) minmax(7.5rem, .65fr) 4rem;
     margin-top: .65rem;
+}
+
+.manual-progress-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: .3rem;
+}
+
+.manual-progress-inputs span {
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.manual-progress-inputs input {
+    padding-inline: .45rem;
 }
 
 .history-list {

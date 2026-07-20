@@ -208,3 +208,37 @@ if (syncForm && syncModal) {
         }
     });
 }
+
+document.querySelectorAll('.achievement-plan').forEach((form) => {
+    const currentInput = form.querySelector('[name="manual_progress_current"]');
+    const targetInput = form.querySelector('[name="manual_progress_target"]');
+
+    if (!currentInput || !targetInput) {
+        return;
+    }
+
+    const updateManualProgress = () => {
+        const card = form.closest('.achievement-card');
+        const progress = card?.querySelector('.achievement-progress');
+
+        if (!progress) {
+            return;
+        }
+
+        const current = Number.parseInt(currentInput.value || currentInput.placeholder || '0', 10);
+        const target = Number.parseInt(targetInput.value || targetInput.placeholder || '0', 10);
+
+        if (!Number.isFinite(current) || !Number.isFinite(target) || target <= 0) {
+            return;
+        }
+
+        const cappedCurrent = Math.max(0, Math.min(current, target));
+        const percent = Math.min(100, Math.round((cappedCurrent / target) * 100));
+
+        progress.style.setProperty('--value', `${percent}%`);
+        progress.querySelector('[data-progress-label]').textContent = `${cappedCurrent.toLocaleString()} / ${target.toLocaleString()}`;
+    };
+
+    currentInput.addEventListener('input', updateManualProgress);
+    targetInput.addEventListener('input', updateManualProgress);
+});
