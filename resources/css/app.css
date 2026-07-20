@@ -825,6 +825,89 @@ a {
     color: #ffc2c7;
 }
 
+.sync-modal[hidden] {
+    display: none;
+}
+
+.sync-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(3, 6, 10, .74);
+    backdrop-filter: blur(14px);
+}
+
+.sync-modal-panel {
+    width: min(28rem, 100%);
+    border: 1px solid rgba(95, 212, 255, .28);
+    border-radius: .65rem;
+    box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, .48), 0 0 2.2rem rgba(95, 212, 255, .1);
+    background: linear-gradient(180deg, rgba(20, 30, 42, .98), rgba(10, 14, 20, .98));
+    padding: 1.15rem;
+}
+
+.sync-modal-panel h2 {
+    margin: .1rem 0 .55rem;
+    font-size: 1.45rem;
+}
+
+.sync-modal-panel p:not(.eyebrow) {
+    margin: 0 0 .9rem;
+    color: var(--soft);
+}
+
+.sync-modal-panel small {
+    display: block;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.sync-modal-panel button {
+    margin-top: .9rem;
+    border: 1px solid rgba(95, 212, 255, .45);
+    border-radius: .4rem;
+    background: rgba(95, 212, 255, .12);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 800;
+    padding: .6rem .85rem;
+}
+
+.sync-loader {
+    width: 2.4rem;
+    height: 2.4rem;
+    border: .18rem solid rgba(255, 255, 255, .14);
+    border-top-color: var(--cyan);
+    border-radius: 999px;
+    margin-bottom: .8rem;
+    animation: sync-spin .85s linear infinite;
+}
+
+.sync-progress {
+    height: .7rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .09);
+    margin-bottom: .65rem;
+}
+
+.sync-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--cyan), var(--green), var(--gold));
+    transition: width .22s ease;
+}
+
+@keyframes sync-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .filters {
     display: flex;
     flex-wrap: wrap;

@@ -6,16 +6,18 @@ use RuntimeException;
 
 class SteamOpenId
 {
+    private const ENDPOINT = 'https://steamcommunity.com/openid/login/';
+
     public function redirectUrl(string $returnTo, string $realm): string
     {
-        return 'https://steamcommunity.com/openid/login?'.http_build_query([
+        return self::ENDPOINT.'?'.http_build_query([
             'openid.ns' => 'http://specs.openid.net/auth/2.0',
             'openid.mode' => 'checkid_setup',
-            'openid.return_to' => $returnTo,
-            'openid.realm' => $realm,
+            'openid.return_to' => $this->httpsUrl($returnTo),
+            'openid.realm' => rtrim($this->httpsUrl($realm), '/'),
             'openid.identity' => 'http://specs.openid.net/auth/2.0/identifier_select',
             'openid.claimed_id' => 'http://specs.openid.net/auth/2.0/identifier_select',
-        ]);
+        ], '', '&', PHP_QUERY_RFC3986);
     }
 
     public function validate(array $payload): string
@@ -34,7 +36,7 @@ class SteamOpenId
             ],
         ]);
 
-        $response = file_get_contents('https://steamcommunity.com/openid/login', false, $context);
+        $response = file_get_contents(self::ENDPOINT, false, $context);
 
         if (! is_string($response) || ! str_contains($response, 'is_valid:true')) {
             throw new RuntimeException('Steam could not validate this login.');
@@ -58,5 +60,14 @@ class SteamOpenId
         }
 
         return $restored;
+    }
+
+    private function httpsUrl(string $url): string
+    {
+        if (str_starts_with($url, 'http://')) {
+            return 'https://'.substr($url, 7);
+        }
+
+        return $url;
     }
 }

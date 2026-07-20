@@ -3,9 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Achievement Tracker</title>
-    <link rel="stylesheet" href="{{ asset('assets/tracker.css') }}">
-    <script src="{{ asset('assets/tracker.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('assets/tracker.css') }}?v={{ filemtime(public_path('assets/tracker.css')) }}">
+    <script src="{{ asset('assets/tracker.js') }}?v={{ filemtime(public_path('assets/tracker.js')) }}" defer></script>
 </head>
 <body class="tracker-body">
     <div class="tracker-shell">
@@ -29,10 +30,10 @@
                 <span>{{ $games->count() }} huntable</span>
             </form>
 
-            <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row compact">
+            <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row compact" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
                 @csrf
                 <button type="submit">Sync Achievements</button>
-                <span>{{ $unsyncedGames }} left</span>
+                <span data-sync-left>{{ $unsyncedGames }} left</span>
             </form>
 
             <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
@@ -269,6 +270,7 @@
                         <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">Store</a>
                         <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">Steam Achievements</a>
                         <a href="{{ $currentGame->guides_url }}" target="_blank" rel="noreferrer">Guides</a>
+                        <a href="#friend-compare">Compare</a>
                         <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
                             @csrf
                             <button type="submit" class="refresh-button">Refresh</button>
@@ -326,7 +328,7 @@
                     </article>
                 </section>
 
-                <section class="compare-panel">
+                <section class="compare-panel" id="friend-compare">
                     <div class="tool-heading">
                         <h3>Compare With A Friend</h3>
                         @if ($compareProfile)
@@ -494,6 +496,20 @@
                 </section>
             @endif
         </main>
+    </div>
+
+    <div class="sync-modal" data-sync-modal hidden>
+        <section class="sync-modal-panel" role="dialog" aria-modal="true" aria-labelledby="sync-modal-title">
+            <div class="sync-loader" aria-hidden="true"></div>
+            <p class="eyebrow">Steam sync</p>
+            <h2 id="sync-modal-title">Syncing achievements</h2>
+            <p data-sync-status>Preparing library check...</p>
+            <div class="sync-progress" aria-hidden="true">
+                <span data-sync-progress style="width: 0%"></span>
+            </div>
+            <small data-sync-detail>Keeping the page open until Steam finishes.</small>
+            <button type="button" data-sync-dismiss hidden>Refresh Page</button>
+        </section>
     </div>
 </body>
 </html>

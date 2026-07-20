@@ -7,6 +7,7 @@ use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use App\Models\TrackerSetting;
 use App\Services\SteamAchievementClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -192,12 +193,20 @@ class DashboardController extends Controller
         return back()->with('status', "Synced {$count} Steam games.");
     }
 
-    public function syncAchievements(SteamAchievementClient $steam): RedirectResponse
+    public function syncAchievements(Request $request, SteamAchievementClient $steam): RedirectResponse|JsonResponse
     {
         try {
-            $result = $steam->syncAchievementBatch(15);
+            $result = $steam->syncAchievementBatch(50);
         } catch (Throwable $exception) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $this->message($exception)], 500);
+            }
+
             return back()->with('error', $this->message($exception));
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($result);
         }
 
         if ($result['attempted'] === 0) {

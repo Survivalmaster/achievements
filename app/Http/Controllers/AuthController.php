@@ -28,7 +28,10 @@ class AuthController extends Controller
     {
         $request->session()->put('url.intended', url()->previous() ?: route('dashboard'));
 
-        return redirect()->away($steam->redirectUrl(route('steam.callback'), config('app.url')));
+        return redirect()->away($steam->redirectUrl(
+            route('steam.callback', absolute: true),
+            config('app.url'),
+        ));
     }
 
     public function handleSteamCallback(Request $request, SteamOpenId $steam, SteamAchievementClient $client): RedirectResponse
