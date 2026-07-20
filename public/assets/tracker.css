@@ -270,7 +270,9 @@ a {
 .sync-row button {
     width: 100%;
     min-height: 2.75rem;
-    padding-inline: .55rem;
+    font-size: .9rem;
+    line-height: 1.15;
+    padding-inline: .45rem;
 }
 
 .sr-only {
