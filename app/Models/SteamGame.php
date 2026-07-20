@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'achievements_total',
     'achievements_unlocked',
     'is_current',
+    'last_played_at',
     'achievements_synced_at',
     'synced_at',
 ])]
@@ -29,6 +30,7 @@ class SteamGame extends Model
             'achievements_total' => 'integer',
             'achievements_unlocked' => 'integer',
             'is_current' => 'boolean',
+            'last_played_at' => 'datetime',
             'achievements_synced_at' => 'datetime',
             'synced_at' => 'datetime',
         ];
@@ -65,5 +67,10 @@ class SteamGame extends Model
     public function getPlaytimeHoursAttribute(): string
     {
         return number_format($this->playtime_forever / 60, 1);
+    }
+
+    public function getLastPlayedLabelAttribute(): string
+    {
+        return $this->last_played_at?->format('M j, Y') ?? 'Never played';
     }
 }

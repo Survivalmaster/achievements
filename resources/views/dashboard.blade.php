@@ -35,6 +35,20 @@
                 <span>{{ $unsyncedGames }} left</span>
             </form>
 
+            <div class="game-filters" aria-label="Game filters">
+                @foreach ([
+                    'all' => 'All',
+                    'in_progress' => 'In progress',
+                    'completed' => 'Completed',
+                    'unchecked' => 'Unchecked',
+                ] as $key => $label)
+                    <a class="{{ $gameFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $key]) }}">
+                        <span>{{ $label }}</span>
+                        <strong>{{ $gameCounts[$key] }}</strong>
+                    </a>
+                @endforeach
+            </div>
+
             <input class="game-search" type="search" placeholder="Search games" data-game-search>
 
             <nav class="game-list" aria-label="Games">
@@ -53,6 +67,7 @@
                                 <strong>{{ $game->name }}</strong>
                                 <small>
                                     {{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked
+                                    <span class="played-date">{{ $game->last_played_label }}</span>
                                     @if ($game->is_current)
                                         <span class="main-badge">Main</span>
                                     @endif
@@ -96,6 +111,9 @@
                         <div class="meta-row">
                             <span>{{ $currentGame->achievements_unlocked }} of {{ $currentGame->achievements_total }} unlocked</span>
                             <span>{{ $currentGame->playtime_hours }} hours played</span>
+                            @if ($currentGame->last_played_at)
+                                <span>Last played {{ $currentGame->last_played_label }}</span>
+                            @endif
                             @if ($currentGame->achievements_synced_at)
                                 <span>Updated {{ $currentGame->achievements_synced_at->diffForHumans() }}</span>
                             @endif
@@ -115,7 +133,7 @@
 
                 <div class="filters">
                     @foreach (['all' => 'All', 'locked' => 'Locked', 'unlocked' => 'Unlocked', 'secret' => 'Secret', 'rare' => 'Rare'] as $key => $label)
-                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['filter' => $key]) }}">{{ $label }}</a>
+                        <a class="{{ $filter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['filter' => $key, 'game_filter' => $gameFilter]) }}">{{ $label }}</a>
                     @endforeach
                 </div>
 

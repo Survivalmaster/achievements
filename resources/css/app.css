@@ -245,6 +245,46 @@ a {
     font-size: .85rem;
 }
 
+.game-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .45rem;
+    margin: .1rem 0 .8rem;
+}
+
+.game-filters a {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: .45rem;
+    border: 1px solid var(--line);
+    border-radius: .4rem;
+    background: rgba(255, 255, 255, .035);
+    color: var(--soft);
+    padding: .48rem .58rem;
+    text-decoration: none;
+}
+
+.game-filters a.active,
+.game-filters a:hover {
+    border-color: rgba(95, 212, 255, .5);
+    background: rgba(95, 212, 255, .12);
+    color: var(--text);
+}
+
+.game-filters span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .78rem;
+}
+
+.game-filters strong {
+    color: var(--cyan);
+    font-size: .75rem;
+}
+
 .game-list {
     display: grid;
     align-content: start;
@@ -334,7 +374,8 @@ a {
 }
 
 .main-badge,
-.completed-badge {
+.completed-badge,
+.played-date {
     display: inline-block;
     margin-left: .35rem;
     border-radius: 999px;
@@ -343,6 +384,14 @@ a {
     padding: .04rem .35rem;
     text-transform: uppercase;
     vertical-align: .08rem;
+}
+
+.played-date {
+    border: 1px solid rgba(161, 174, 194, .2);
+    background: rgba(255, 255, 255, .04);
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: none;
 }
 
 .main-badge {

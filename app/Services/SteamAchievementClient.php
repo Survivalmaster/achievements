@@ -6,6 +6,7 @@ use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -34,6 +35,9 @@ class SteamAchievementClient
                     'img_icon_url' => $game['img_icon_url'] ?? null,
                     'playtime_forever' => $game['playtime_forever'] ?? 0,
                     'playtime_2weeks' => $game['playtime_2weeks'] ?? 0,
+                    'last_played_at' => ($game['rtime_last_played'] ?? 0) > 0
+                        ? Carbon::createFromTimestamp($game['rtime_last_played'])
+                        : null,
                     'synced_at' => now(),
                 ],
             );

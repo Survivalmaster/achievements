@@ -14,7 +14,8 @@ class DashboardController extends Controller
 {
     public function index(Request $request): View
     {
-        $games = SteamGame::query()
+        $gameFilter = $request->query('game_filter', 'all');
+        $baseGamesQuery = SteamGame::query()
             ->withCount([
                 'achievements as secret_count' => fn ($query) => $query->where('hidden', true),
                 'achievements as rare_count' => fn ($query) => $query->where('global_percent', '>', 0)->where('global_percent', '<=', 10),
@@ -22,8 +23,40 @@ class DashboardController extends Controller
             ->where(function ($query): void {
                 $query->whereNull('achievements_synced_at')
                     ->orWhere('achievements_total', '>', 0);
-            })
+            });
+
+        $gameCounts = [
+            'all' => (clone $baseGamesQuery)->count(),
+            'in_progress' => (clone $baseGamesQuery)
+                ->where('achievements_total', '>', 0)
+                ->whereColumn('achievements_unlocked', '<', 'achievements_total')
+                ->count(),
+            'completed' => (clone $baseGamesQuery)
+                ->where('achievements_total', '>', 0)
+                ->whereColumn('achievements_unlocked', '>=', 'achievements_total')
+                ->count(),
+            'unchecked' => (clone $baseGamesQuery)
+                ->whereNull('achievements_synced_at')
+                ->count(),
+        ];
+
+        $gamesQuery = clone $baseGamesQuery;
+
+        if ($gameFilter === 'in_progress') {
+            $gamesQuery->where('achievements_total', '>', 0)
+                ->whereColumn('achievements_unlocked', '<', 'achievements_total');
+        } elseif ($gameFilter === 'completed') {
+            $gamesQuery->where('achievements_total', '>', 0)
+                ->whereColumn('achievements_unlocked', '>=', 'achievements_total');
+        } elseif ($gameFilter === 'unchecked') {
+            $gamesQuery->whereNull('achievements_synced_at');
+        } else {
+            $gameFilter = 'all';
+        }
+
+        $games = $gamesQuery
             ->orderByDesc('is_current')
+            ->orderByDesc('last_played_at')
             ->orderByDesc('playtime_2weeks')
             ->orderByDesc('playtime_forever')
             ->orderBy('name')
@@ -52,6 +85,8 @@ class DashboardController extends Controller
             'currentGame' => $currentGame,
             'achievements' => $achievementQuery?->get() ?? collect(),
             'filter' => $filter,
+            'gameFilter' => $gameFilter,
+            'gameCounts' => $gameCounts,
             'configured' => config('services.steam.api_key') && config('services.steam.steam_id'),
             'unsyncedGames' => SteamGame::whereNull('achievements_synced_at')->count(),
         ]);

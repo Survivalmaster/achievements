@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedInteger('achievements_total')->default(0);
             $table->unsignedInteger('achievements_unlocked')->default(0);
             $table->boolean('is_current')->default(false);
+            $table->timestamp('last_played_at')->nullable();
             $table->timestamp('achievements_synced_at')->nullable();
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
