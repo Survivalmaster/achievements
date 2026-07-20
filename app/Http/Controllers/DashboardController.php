@@ -118,6 +118,10 @@ class DashboardController extends Controller
 
         $games = $gamesQuery
             ->orderByDesc('is_current')
+            ->orderByRaw('case when achievements_total > 0 and achievements_unlocked >= achievements_total then 1 else 0 end asc')
+            ->orderByRaw('case when achievements_total = 0 then 1 else 0 end asc')
+            ->orderByRaw('case when achievements_total > 0 then ((achievements_unlocked * 100.0) / achievements_total) else 0 end desc')
+            ->orderByRaw('case when achievements_total > 0 then (achievements_total - achievements_unlocked) else 999999 end asc')
             ->orderByDesc('last_played_at')
             ->orderByDesc('playtime_2weeks')
             ->orderByDesc('playtime_forever')
