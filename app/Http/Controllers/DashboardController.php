@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -351,16 +352,25 @@ class DashboardController extends Controller
     public function updateAchievement(Request $request, SteamAchievement $achievement): RedirectResponse
     {
         $this->authorizeAchievement($achievement);
+        $supportsManualProgress = Schema::hasColumn('achievement_hunt_settings', 'manual_progress_current')
+            && Schema::hasColumn('achievement_hunt_settings', 'manual_progress_target');
 
-        $data = $request->validate([
+        $rules = [
             'status' => ['required', 'in:'.implode(',', AchievementHuntSetting::STATUSES)],
             'note' => ['nullable', 'string', 'max:1200'],
             'tags' => ['nullable', 'string', 'max:255'],
-            'manual_progress_current' => ['nullable', 'integer', 'min:0'],
-            'manual_progress_target' => ['nullable', 'integer', 'min:1'],
-        ]);
+        ];
+
+        if ($supportsManualProgress) {
+            $rules['manual_progress_current'] = ['nullable', 'integer', 'min:0'];
+            $rules['manual_progress_target'] = ['nullable', 'integer', 'min:1'];
+        }
+
+        $data = $request->validate($rules);
 
         if (
+            $supportsManualProgress
+            &&
             ($data['manual_progress_current'] ?? null) !== null
             && ($data['manual_progress_target'] ?? null) !== null
             && (int) $data['manual_progress_current'] > (int) $data['manual_progress_target']
@@ -368,18 +378,23 @@ class DashboardController extends Controller
             $data['manual_progress_current'] = $data['manual_progress_target'];
         }
 
+        $values = [
+            'status' => $data['status'],
+            'note' => $data['note'] ?? null,
+            'tags' => $data['tags'] ?? null,
+        ];
+
+        if ($supportsManualProgress) {
+            $values['manual_progress_current'] = $data['manual_progress_current'] ?? null;
+            $values['manual_progress_target'] = $data['manual_progress_target'] ?? null;
+        }
+
         $achievement->huntSetting()->updateOrCreate(
             ['steam_achievement_id' => $achievement->id],
-            [
-                'status' => $data['status'],
-                'note' => $data['note'] ?? null,
-                'tags' => $data['tags'] ?? null,
-                'manual_progress_current' => $data['manual_progress_current'] ?? null,
-                'manual_progress_target' => $data['manual_progress_target'] ?? null,
-            ],
+            $values,
         );
 
-        return back()->with('status', 'Achievement plan saved.');
+        return back()->with('status', $supportsManualProgress ? 'Achievement plan saved.' : 'Achievement plan saved. Run migrations to enable manual progress saving.');
     }
 
     public function updateSpoilers(Request $request): RedirectResponse
