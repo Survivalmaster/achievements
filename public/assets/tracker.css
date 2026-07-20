@@ -128,6 +128,7 @@ a {
 }
 
 .login-form button,
+.steam-login-button,
 .sync-row button,
 .refresh-button {
     border: 1px solid rgba(95, 212, 255, .45);
@@ -137,6 +138,12 @@ a {
     cursor: pointer;
     font-weight: 700;
     padding: .8rem 1rem;
+}
+
+.steam-login-button {
+    display: block;
+    text-align: center;
+    text-decoration: none;
 }
 
 .form-error {
@@ -347,6 +354,11 @@ a {
     border: 1px solid var(--line);
     border-radius: .35rem;
     background: #0a0e14;
+}
+
+.achievement-icon.small {
+    width: 2.8rem;
+    height: 2.8rem;
 }
 
 .game-icon {
@@ -696,6 +708,113 @@ a {
     color: var(--cyan);
 }
 
+.recent-achievements {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+    min-height: 3rem;
+}
+
+.recent-achievement {
+    display: grid;
+    grid-template-columns: 2.8rem minmax(0, 1fr);
+    align-items: center;
+    gap: .65rem;
+    border: 1px solid var(--line);
+    border-radius: .45rem;
+    background: rgba(255, 255, 255, .035);
+    color: inherit;
+    padding: .55rem;
+    text-decoration: none;
+}
+
+.recent-achievement strong,
+.recent-achievement small {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recent-achievement small {
+    color: var(--muted);
+    font-size: .76rem;
+}
+
+.compare-panel {
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    background: rgba(18, 24, 33, .66);
+    margin-bottom: .9rem;
+    padding: .85rem;
+}
+
+.compare-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: .55rem;
+}
+
+.compare-form input,
+.compare-form select {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: .35rem;
+    background: rgba(8, 11, 16, .82);
+    color: var(--text);
+    padding: .55rem .65rem;
+}
+
+.compare-form button {
+    border: 1px solid rgba(95, 212, 255, .35);
+    border-radius: .35rem;
+    background: rgba(95, 212, 255, .1);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 800;
+    padding: .55rem .8rem;
+}
+
+.compare-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+    margin-top: .7rem;
+}
+
+.compare-grid div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: .5rem;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding-top: .5rem;
+}
+
+.compare-grid strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .84rem;
+}
+
+.compare-grid span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: .7rem;
+    padding: .15rem .45rem;
+}
+
+.compare-grid .yes {
+    color: #bff8dc;
+}
+
+.compare-grid .no {
+    color: #ffc2c7;
+}
+
 .filters {
     display: flex;
     flex-wrap: wrap;
@@ -1033,7 +1152,10 @@ a {
     }
 
     .achievement-plan,
-    .tool-grid {
+    .tool-grid,
+    .compare-form,
+    .compare-grid,
+    .recent-achievements {
         grid-template-columns: 1fr;
     }
 

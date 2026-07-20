@@ -2,42 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Services\SteamAchievementClient;
+use App\Services\SteamOpenId;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use RuntimeException;
+use Throwable;
 
 class AuthController extends Controller
 {
     public function create(): View|RedirectResponse
     {
-        if (session('achievement_auth')) {
+        if (Auth::check()) {
             return redirect()->route('dashboard');
         }
 
         return view('auth.login');
     }
 
-    public function store(Request $request): RedirectResponse
+    public function redirectToSteam(Request $request, SteamOpenId $steam): RedirectResponse
     {
-        $data = $request->validate([
-            'password' => ['required', 'string'],
-        ]);
+        $request->session()->put('url.intended', url()->previous() ?: route('dashboard'));
 
-        $password = (string) config('services.dashboard.password');
+        return redirect()->away($steam->redirectUrl(route('steam.callback'), config('app.url')));
+    }
 
-        if ($password !== '' && hash_equals($password, $data['password'])) {
-            $request->session()->regenerate();
-            $request->session()->put('achievement_auth', true);
-
-            return redirect()->intended(route('dashboard'));
+    public function handleSteamCallback(Request $request, SteamOpenId $steam, SteamAchievementClient $client): RedirectResponse
+    {
+        try {
+            $steamId = $steam->validate($request->query());
+            $profile = $client->playerSummary($steamId);
+        } catch (Throwable $exception) {
+            return redirect()->route('login')->withErrors([
+                'steam' => $exception instanceof RuntimeException ? $exception->getMessage() : 'Steam login failed.',
+            ]);
         }
 
-        return back()->withErrors(['password' => 'That password did not unlock the vault.'])->onlyInput();
+        $user = User::updateOrCreate(
+            ['steam_id' => $steamId],
+            [
+                'name' => $profile['personaname'] ?? "Steam {$steamId}",
+                'email' => "{$steamId}@steam.local",
+                'avatar' => $profile['avatarfull'] ?? $profile['avatarmedium'] ?? null,
+                'profile_url' => $profile['profileurl'] ?? null,
+                'password' => Str::password(48),
+            ],
+        );
+
+        Auth::login($user, true);
+        $request->session()->regenerate();
+
+        return redirect()->intended(route('dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
-        $request->session()->forget('achievement_auth');
+        Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

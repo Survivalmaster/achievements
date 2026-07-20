@@ -7,6 +7,7 @@ use App\Models\SteamGame;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -18,6 +19,7 @@ class SteamAchievementClient
     {
         $key = $this->apiKey();
         $steamId = $this->steamId();
+        $userId = Auth::id();
 
         $payload = $this->http()->get('https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/', [
             'key' => $key,
@@ -29,7 +31,7 @@ class SteamAchievementClient
 
         foreach ($payload as $game) {
             SteamGame::updateOrCreate(
-                ['appid' => $game['appid']],
+                ['user_id' => $userId, 'appid' => $game['appid']],
                 [
                     'name' => $game['name'] ?? 'Unknown game',
                     'img_icon_url' => $game['img_icon_url'] ?? null,
@@ -43,8 +45,9 @@ class SteamAchievementClient
             );
         }
 
-        if (! SteamGame::where('is_current', true)->exists()) {
-            SteamGame::orderByDesc('playtime_2weeks')
+        if (! SteamGame::where('user_id', $userId)->where('is_current', true)->exists()) {
+            SteamGame::where('user_id', $userId)
+                ->orderByDesc('playtime_2weeks')
                 ->orderByDesc('playtime_forever')
                 ->first()
                 ?->update(['is_current' => true]);
@@ -116,6 +119,7 @@ class SteamAchievementClient
         $this->steamId();
 
         $games = SteamGame::query()
+            ->where('user_id', Auth::id())
             ->whereNull('achievements_synced_at')
             ->orderByDesc('is_current')
             ->orderByDesc('playtime_2weeks')
@@ -140,8 +144,44 @@ class SteamAchievementClient
             'attempted' => $games->count(),
             'synced' => $synced,
             'failed' => $failed,
-            'remaining' => SteamGame::whereNull('achievements_synced_at')->count(),
+            'remaining' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
         ];
+    }
+
+    public function playerSummary(string $steamId): array
+    {
+        return $this->http()->get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', [
+            'key' => $this->apiKey(),
+            'steamids' => $steamId,
+            'format' => 'json',
+        ])->throw()->json('response.players.0', []);
+    }
+
+    public function friendSummaries(): array
+    {
+        $friends = $this->http()->get('https://api.steampowered.com/ISteamUser/GetFriendList/v1/', [
+            'key' => $this->apiKey(),
+            'steamid' => $this->steamId(),
+            'relationship' => 'friend',
+            'format' => 'json',
+        ])->throw()->json('friendslist.friends', []);
+
+        $steamIds = collect($friends)->pluck('steamid')->filter()->take(50)->implode(',');
+
+        if ($steamIds === '') {
+            return [];
+        }
+
+        return $this->http()->get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', [
+            'key' => $this->apiKey(),
+            'steamids' => $steamIds,
+            'format' => 'json',
+        ])->throw()->json('response.players', []);
+    }
+
+    public function playerAchievementsFor(int $appid, string $steamId): array
+    {
+        return $this->playerAchievements($appid, $steamId);
     }
 
     private function schemaAchievements(int $appid): array
@@ -154,11 +194,11 @@ class SteamAchievementClient
         ])->throw()->json('game.availableGameStats.achievements', []);
     }
 
-    private function playerAchievements(int $appid): array
+    private function playerAchievements(int $appid, ?string $steamId = null): array
     {
         $response = $this->http()->get('https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/', [
             'key' => $this->apiKey(),
-            'steamid' => $this->steamId(),
+            'steamid' => $steamId ?? $this->steamId(),
             'appid' => $appid,
             'l' => config('services.steam.language'),
             'format' => 'json',
@@ -227,7 +267,7 @@ class SteamAchievementClient
 
     private function steamId(): string
     {
-        $steamId = (string) config('services.steam.steam_id');
+        $steamId = (string) (Auth::user()?->steam_id ?? config('services.steam.steam_id'));
 
         if ($steamId === '') {
             throw new RuntimeException('STEAM_ID is missing.');

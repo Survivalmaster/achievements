@@ -9,6 +9,7 @@ use App\Models\TrackerSetting;
 use App\Services\SteamAchievementClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -30,8 +31,10 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function showGame(Request $request, SteamGame $game): View
+    public function showGame(Request $request, SteamGame $game, SteamAchievementClient $steam): View
     {
+        $this->authorizeGame($game);
+
         $payload = $this->basePayload($request);
         $game->load('huntSetting');
 
@@ -53,6 +56,32 @@ class DashboardController extends Controller
             $achievementQuery->where('global_percent', '>', 0)->where('global_percent', '<=', 10);
         }
 
+        $compareSteamId = $request->query('compare_steam_id') ?: $request->query('friend_steam_id');
+        $comparison = collect();
+        $compareProfile = null;
+
+        if (is_string($compareSteamId) && preg_match('/^\d{17}$/', $compareSteamId)) {
+            try {
+                $friendAchievements = collect($steam->playerAchievementsFor($game->appid, $compareSteamId))->keyBy('apiname');
+                $compareProfile = $steam->playerSummary($compareSteamId);
+                $comparison = $game->achievements()
+                    ->orderBy('achieved')
+                    ->orderBy('name')
+                    ->get()
+                    ->map(function (SteamAchievement $achievement) use ($friendAchievements): array {
+                        $friend = $friendAchievements->get($achievement->apiname, []);
+
+                        return [
+                            'name' => $achievement->name,
+                            'you' => $achievement->achieved,
+                            'friend' => (bool) ($friend['achieved'] ?? false),
+                        ];
+                    });
+            } catch (Throwable) {
+                $comparison = collect();
+            }
+        }
+
         return view('dashboard', [
             ...$payload,
             'mode' => 'game',
@@ -61,6 +90,10 @@ class DashboardController extends Controller
             'filter' => $filter,
             'history' => $game->progressSnapshots()->latest('taken_at')->limit(8)->get(),
             'overview' => $this->overviewStats(),
+            'friends' => $this->friends($steam),
+            'compareSteamId' => $compareSteamId,
+            'compareProfile' => $compareProfile,
+            'comparison' => $comparison,
         ]);
     }
 
@@ -68,6 +101,7 @@ class DashboardController extends Controller
     {
         $gameFilter = $request->query('game_filter', 'all');
         $baseGamesQuery = SteamGame::query()
+            ->where('user_id', Auth::id())
             ->with('huntSetting')
             ->withCount([
                 'achievements as secret_count' => fn ($query) => $query->where('hidden', true),
@@ -96,12 +130,13 @@ class DashboardController extends Controller
                 ->whereNull('achievements_synced_at')
                 ->count(),
             'archived' => SteamGame::query()
+                ->where('user_id', Auth::id())
                 ->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->count(),
         ];
 
         $gamesQuery = $gameFilter === 'archived'
-            ? SteamGame::query()->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
+            ? SteamGame::query()->where('user_id', Auth::id())->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
             : clone $baseGamesQuery;
 
         if ($gameFilter === 'in_progress') {
@@ -128,15 +163,16 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get();
 
-        $spoilerSafe = TrackerSetting::value('spoiler_safe', '0') === '1';
+        $spoilerSafe = TrackerSetting::value('spoiler_safe:'.Auth::id(), '0') === '1';
 
         return [
             'games' => $games,
             'gameFilter' => $gameFilter,
             'gameCounts' => $gameCounts,
-            'configured' => config('services.steam.api_key') && config('services.steam.steam_id'),
-            'unsyncedGames' => SteamGame::whereNull('achievements_synced_at')->count(),
+            'configured' => (bool) config('services.steam.api_key'),
+            'unsyncedGames' => SteamGame::where('user_id', Auth::id())->whereNull('achievements_synced_at')->count(),
             'spoilerSafe' => $spoilerSafe,
+            'recentAchievements' => $this->recentAchievements(),
             'roadmapGames' => $this->roadmapGames(),
             'rarestUnlocked' => $this->rareAchievements(true),
             'rarestMissing' => $this->rareAchievements(false),
@@ -179,6 +215,8 @@ class DashboardController extends Controller
 
     public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse
     {
+        $this->authorizeGame($game);
+
         try {
             $steam->syncAchievements($game);
         } catch (Throwable $exception) {
@@ -190,7 +228,9 @@ class DashboardController extends Controller
 
     public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam): RedirectResponse
     {
-        SteamGame::query()->update(['is_current' => false]);
+        $this->authorizeGame($game);
+
+        SteamGame::where('user_id', Auth::id())->update(['is_current' => false]);
         $game->update(['is_current' => true]);
 
         if (! $game->achievements_synced_at) {
@@ -212,6 +252,8 @@ class DashboardController extends Controller
 
     public function updateGame(Request $request, SteamGame $game): RedirectResponse
     {
+        $this->authorizeGame($game);
+
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:2000'],
             'tags' => ['nullable', 'string', 'max:255'],
@@ -234,6 +276,8 @@ class DashboardController extends Controller
 
     public function updateAchievement(Request $request, SteamAchievement $achievement): RedirectResponse
     {
+        $this->authorizeAchievement($achievement);
+
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', AchievementHuntSetting::STATUSES)],
             'note' => ['nullable', 'string', 'max:1200'],
@@ -259,7 +303,7 @@ class DashboardController extends Controller
         ]);
 
         TrackerSetting::query()->updateOrCreate(
-            ['key' => 'spoiler_safe'],
+            ['key' => 'spoiler_safe:'.Auth::id()],
             ['value' => (bool) ($data['spoiler_safe'] ?? false) ? '1' : '0'],
         );
 
@@ -288,6 +332,7 @@ class DashboardController extends Controller
     private function roadmapGames()
     {
         return SteamGame::query()
+            ->where('user_id', Auth::id())
             ->with('huntSetting')
             ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
             ->where('achievements_total', '>', 0)
@@ -305,7 +350,9 @@ class DashboardController extends Controller
             ->where('achieved', $achieved)
             ->where('global_percent', '>', 0)
             ->whereHas('game', function ($query): void {
-                $query->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
+                $query
+                    ->where('user_id', Auth::id())
+                    ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
             })
             ->orderBy('global_percent')
             ->limit(6)
@@ -318,7 +365,9 @@ class DashboardController extends Controller
             ->with(['game', 'huntSetting'])
             ->whereHas('huntSetting', fn ($setting) => $setting->whereIn('status', ['target', 'later']))
             ->whereHas('game', function ($query): void {
-                $query->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
+                $query
+                    ->where('user_id', Auth::id())
+                    ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
             })
             ->orderBy('achieved')
             ->orderByRaw('global_percent is null, global_percent asc')
@@ -334,6 +383,7 @@ class DashboardController extends Controller
             ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('status', 'ignore'))
             ->whereHas('game', function ($query): void {
                 $query
+                    ->where('user_id', Auth::id())
                     ->where('achievements_total', '>', 0)
                     ->whereColumn('achievements_unlocked', '<', 'achievements_total')
                     ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
@@ -379,6 +429,7 @@ class DashboardController extends Controller
     private function overviewStats(): array
     {
         $activeGames = SteamGame::query()
+            ->where('user_id', Auth::id())
             ->where(function ($query): void {
                 $query->whereNull('achievements_synced_at')
                     ->orWhere('achievements_total', '>', 0);
@@ -423,23 +474,60 @@ class DashboardController extends Controller
             'unlocked_achievements' => $unlockedAchievements,
             'locked_achievements' => max(0, $totalAchievements - $unlockedAchievements),
             'completion' => $completion,
-            'rare_missing' => SteamAchievement::query()->where('achieved', false)->where('global_percent', '>', 0)->where('global_percent', '<=', 10)->count(),
-            'secret_locked' => SteamAchievement::query()->where('achieved', false)->where('hidden', true)->count(),
-            'targets' => AchievementHuntSetting::query()->where('status', 'target')->count(),
+            'rare_missing' => SteamAchievement::query()->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))->where('achieved', false)->where('global_percent', '>', 0)->where('global_percent', '<=', 10)->count(),
+            'secret_locked' => SteamAchievement::query()->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))->where('achieved', false)->where('hidden', true)->count(),
+            'targets' => AchievementHuntSetting::query()
+                ->where('status', 'target')
+                ->whereHas('achievement.game', fn ($query) => $query->where('user_id', Auth::id()))
+                ->count(),
             'bands' => $bands,
             'max_band' => $maxBand,
             'top_playtime' => SteamGame::query()
+                ->where('user_id', Auth::id())
                 ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->where('playtime_forever', '>', 0)
                 ->orderByDesc('playtime_forever')
                 ->limit(5)
                 ->get(),
             'recently_played' => SteamGame::query()
+                ->where('user_id', Auth::id())
                 ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->whereNotNull('last_played_at')
                 ->orderByDesc('last_played_at')
                 ->limit(5)
                 ->get(),
         ];
+    }
+
+    private function recentAchievements()
+    {
+        return SteamAchievement::query()
+            ->with('game')
+            ->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))
+            ->where('achieved', true)
+            ->where('unlock_time', '>=', now()->subDay()->timestamp)
+            ->orderByDesc('unlock_time')
+            ->limit(12)
+            ->get();
+    }
+
+    private function friends(SteamAchievementClient $steam)
+    {
+        try {
+            return collect($steam->friendSummaries());
+        } catch (Throwable) {
+            return collect();
+        }
+    }
+
+    private function authorizeGame(SteamGame $game): void
+    {
+        abort_unless((int) $game->user_id === (int) Auth::id(), 404);
+    }
+
+    private function authorizeAchievement(SteamAchievement $achievement): void
+    {
+        $achievement->loadMissing('game');
+        $this->authorizeGame($achievement->game);
     }
 }

@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::create('steam_games', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('appid')->unique();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('appid');
             $table->string('name');
             $table->string('img_icon_url')->nullable();
             $table->unsignedInteger('playtime_forever')->default(0);
@@ -22,6 +23,8 @@ return new class extends Migration
             $table->timestamp('achievements_synced_at')->nullable();
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
+
+            $table->unique(['user_id', 'appid']);
         });
     }
 

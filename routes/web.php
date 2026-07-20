@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/dashboard');
 
 Route::get('/login', [AuthController::class, 'create'])->name('login');
-Route::post('/login', [AuthController::class, 'store'])->name('login.store');
+Route::get('/auth/steam', [AuthController::class, 'redirectToSteam'])->name('steam.redirect');
+Route::get('/auth/steam/callback', [AuthController::class, 'handleSteamCallback'])->name('steam.callback');
 Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
 Route::middleware('dashboard.auth')->group(function (): void {

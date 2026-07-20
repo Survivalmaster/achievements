@@ -112,7 +112,7 @@
             @endif
 
             @unless ($configured)
-                <div class="notice error">Add STEAM_API_KEY and STEAM_ID to .env, then run php artisan config:clear.</div>
+                <div class="notice error">Add STEAM_API_KEY to .env, then run php artisan config:clear.</div>
             @endunless
 
             @if ($mode === 'overview')
@@ -222,6 +222,27 @@
                             <p>Mark targets to shape this list.</p>
                         @endforelse
                     </article>
+
+                    <article class="analytics-panel wide">
+                        <div class="tool-heading"><h3>Recent Achievements</h3><span class="soft-label">Last 24 hours</span></div>
+                        <div class="recent-achievements">
+                            @foreach ($recentAchievements as $achievement)
+                                <a class="recent-achievement" href="{{ route('games.show', ['game' => $achievement->game, 'game_filter' => $gameFilter]) }}">
+                                    <span class="achievement-icon small" data-fallback="{{ strtoupper(substr($achievement->name, 0, 2)) }}">
+                                        @if ($achievement->display_icon)
+                                            <img src="{{ $achievement->display_icon }}" alt="" onerror="this.parentElement.classList.add('image-missing'); this.remove()">
+                                        @else
+                                            <span>{{ strtoupper(substr($achievement->name, 0, 2)) }}</span>
+                                        @endif
+                                    </span>
+                                    <span>
+                                        <strong>{{ $achievement->name }}</strong>
+                                        <small>{{ $achievement->game->name }} / {{ date('H:i', $achievement->unlock_time) }}</small>
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </article>
                 </section>
             @elseif ($currentGame)
                 <section class="current-game">
@@ -303,6 +324,37 @@
                             @endforelse
                         </div>
                     </article>
+                </section>
+
+                <section class="compare-panel">
+                    <div class="tool-heading">
+                        <h3>Compare With A Friend</h3>
+                        @if ($compareProfile)
+                            <span class="soft-label">{{ $compareProfile['personaname'] ?? $compareSteamId }}</span>
+                        @endif
+                    </div>
+                    <form method="GET" action="{{ route('games.show', $currentGame) }}" class="compare-form">
+                        <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                        <select name="friend_steam_id">
+                            <option value="">Choose Steam friend</option>
+                            @foreach ($friends as $friend)
+                                <option value="{{ $friend['steamid'] }}" @selected($compareSteamId === ($friend['steamid'] ?? null))>{{ $friend['personaname'] ?? $friend['steamid'] }}</option>
+                            @endforeach
+                        </select>
+                        <input name="compare_steam_id" value="{{ $compareSteamId }}" placeholder="Or paste SteamID64">
+                        <button type="submit">Compare</button>
+                    </form>
+                    @if ($comparison->isNotEmpty())
+                        <div class="compare-grid">
+                            @foreach ($comparison->take(12) as $row)
+                                <div>
+                                    <strong>{{ $row['name'] }}</strong>
+                                    <span class="{{ $row['you'] ? 'yes' : 'no' }}">You {{ $row['you'] ? 'have' : 'need' }}</span>
+                                    <span class="{{ $row['friend'] ? 'yes' : 'no' }}">Friend {{ $row['friend'] ? 'has' : 'needs' }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </section>
 
                 <section class="command-grid">

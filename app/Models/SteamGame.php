@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'appid',
+    'user_id',
     'name',
     'img_icon_url',
     'playtime_forever',
@@ -40,6 +42,11 @@ class SteamGame extends Model
     public function achievements(): HasMany
     {
         return $this->hasMany(SteamAchievement::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function huntSetting(): HasOne
