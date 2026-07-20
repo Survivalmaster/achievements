@@ -9,6 +9,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class SteamAchievementClient
 {
@@ -96,6 +97,44 @@ class SteamAchievementClient
         });
 
         return $game->refresh();
+    }
+
+    /**
+     * @return array{attempted:int,synced:int,failed:int,remaining:int}
+     */
+    public function syncAchievementBatch(int $limit = 15): array
+    {
+        $limit = max(1, min($limit, 50));
+        $this->apiKey();
+        $this->steamId();
+
+        $games = SteamGame::query()
+            ->whereNull('achievements_synced_at')
+            ->orderByDesc('is_current')
+            ->orderByDesc('playtime_2weeks')
+            ->orderByDesc('playtime_forever')
+            ->orderBy('name')
+            ->limit($limit)
+            ->get();
+
+        $synced = 0;
+        $failed = 0;
+
+        foreach ($games as $game) {
+            try {
+                $this->syncAchievements($game);
+                $synced++;
+            } catch (Throwable) {
+                $failed++;
+            }
+        }
+
+        return [
+            'attempted' => $games->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+            'remaining' => SteamGame::whereNull('achievements_synced_at')->count(),
+        ];
     }
 
     private function schemaAchievements(int $appid): array

@@ -49,6 +49,7 @@ class DashboardController extends Controller
             'achievements' => $achievementQuery?->get() ?? collect(),
             'filter' => $filter,
             'configured' => config('services.steam.api_key') && config('services.steam.steam_id'),
+            'unsyncedGames' => SteamGame::whereNull('achievements_synced_at')->count(),
         ]);
     }
 
@@ -61,6 +62,27 @@ class DashboardController extends Controller
         }
 
         return back()->with('status', "Synced {$count} Steam games.");
+    }
+
+    public function syncAchievements(SteamAchievementClient $steam): RedirectResponse
+    {
+        try {
+            $result = $steam->syncAchievementBatch(15);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        if ($result['attempted'] === 0) {
+            return back()->with('status', 'All games have achievement data checked.');
+        }
+
+        $message = "Checked {$result['synced']} games";
+
+        if ($result['failed'] > 0) {
+            $message .= " ({$result['failed']} failed)";
+        }
+
+        return back()->with('status', "{$message}. {$result['remaining']} games left to check.");
     }
 
     public function refreshGame(SteamGame $game, SteamAchievementClient $steam): RedirectResponse

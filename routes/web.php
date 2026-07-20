@@ -13,6 +13,7 @@ Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 Route::middleware('dashboard.auth')->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/sync/library', [DashboardController::class, 'syncLibrary'])->name('sync.library');
+    Route::post('/sync/achievements', [DashboardController::class, 'syncAchievements'])->name('sync.achievements');
     Route::post('/games/{game}/current', [DashboardController::class, 'setCurrent'])->name('games.current');
     Route::post('/games/{game}/refresh', [DashboardController::class, 'refreshGame'])->name('games.refresh');
 });

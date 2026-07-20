@@ -29,6 +29,12 @@
                 <span>{{ $games->count() }} games</span>
             </form>
 
+            <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row compact">
+                @csrf
+                <button type="submit">Sync Achievements</button>
+                <span>{{ $unsyncedGames }} left</span>
+            </form>
+
             <input class="game-search" type="search" placeholder="Search games" data-game-search>
 
             <nav class="game-list" aria-label="Games">
@@ -45,7 +51,12 @@
                             </span>
                             <span class="game-copy">
                                 <strong>{{ $game->name }}</strong>
-                                <small>{{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked</small>
+                                <small>
+                                    {{ $game->achievements_unlocked }}/{{ $game->achievements_total }} unlocked
+                                    @if ($game->is_current)
+                                        <span class="main-badge">Main</span>
+                                    @endif
+                                </small>
                             </span>
                             <span class="progress-ring" style="--value: {{ $game->completion_percent }}%">{{ $game->completion_percent }}</span>
                         </button>

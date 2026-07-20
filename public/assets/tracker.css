@@ -222,6 +222,10 @@ a {
     margin: 1.2rem 0 .8rem;
 }
 
+.sync-row.compact {
+    margin-top: 0;
+}
+
 .sync-row button {
     flex: 1;
 }
@@ -308,6 +312,20 @@ a {
 .meta-row {
     color: var(--muted);
     font-size: .78rem;
+}
+
+.main-badge {
+    display: inline-block;
+    margin-left: .35rem;
+    border: 1px solid rgba(95, 212, 255, .35);
+    border-radius: 999px;
+    background: rgba(95, 212, 255, .12);
+    color: var(--cyan);
+    font-size: .66rem;
+    font-weight: 800;
+    padding: .04rem .35rem;
+    text-transform: uppercase;
+    vertical-align: .08rem;
 }
 
 .progress-ring {
