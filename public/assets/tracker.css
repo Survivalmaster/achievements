@@ -341,6 +341,15 @@ a {
     gap: .45rem;
 }
 
+.platform-link-card.compact {
+    padding: .62rem;
+}
+
+.platform-mini-form {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+}
+
 .platform-link-card input {
     min-width: 0;
     border: 1px solid var(--line);
@@ -364,6 +373,10 @@ a {
     font-size: .78rem;
     font-weight: 850;
     padding: .58rem .65rem;
+}
+
+.platform-mini-form button {
+    padding-inline: .55rem;
 }
 
 .platform-link-card small {
@@ -484,6 +497,28 @@ a {
 .platform-psn i {
     background: linear-gradient(135deg, #eef4fb, #5882ff 58%, #142055);
     box-shadow: 0 0 .45rem rgba(88, 130, 255, .38);
+}
+
+.platform-epic {
+    border-color: rgba(238, 244, 251, .32);
+    background: rgba(238, 244, 251, .08);
+    color: #eef4fb;
+}
+
+.platform-epic i {
+    background: linear-gradient(135deg, #eef4fb, #8d9aaa 58%, #111820);
+    box-shadow: 0 0 .42rem rgba(238, 244, 251, .24);
+}
+
+.platform-ea {
+    border-color: rgba(75, 209, 143, .4);
+    background: rgba(75, 209, 143, .1);
+    color: #dfffea;
+}
+
+.platform-ea i {
+    background: linear-gradient(135deg, #eef4fb, #4bd18f 58%, #123820);
+    box-shadow: 0 0 .42rem rgba(75, 209, 143, .28);
 }
 
 .platform-all i {

@@ -77,6 +77,22 @@
                 @endif
             </section>
 
+            <section class="platform-link-card compact">
+                <div class="tool-heading">
+                    <h3>More Platforms</h3>
+                </div>
+                @foreach ([\App\Models\SteamGame::PLATFORM_EPIC, \App\Models\SteamGame::PLATFORM_EA] as $externalPlatform)
+                    @php($externalAccount = $externalAccounts->get($externalPlatform))
+                    <form method="POST" action="{{ route('platforms.link', $externalPlatform) }}" class="platform-mini-form">
+                        @csrf
+                        <span class="platform-badge platform-{{ $externalPlatform }}"><i></i>{{ \App\Models\SteamGame::PLATFORMS[$externalPlatform] }}</span>
+                        <input name="display_name" value="{{ $externalAccount?->display_name }}" placeholder="Account name">
+                        <button type="submit">{{ $externalAccount ? 'Save' : 'Add' }}</button>
+                    </form>
+                @endforeach
+                <small>Sync pending API support.</small>
+            </section>
+
             <div class="game-filters" aria-label="Game filters">
                 <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard', ['platform_filter' => $platformFilter]) }}">
                     <span>Dashboard</span>

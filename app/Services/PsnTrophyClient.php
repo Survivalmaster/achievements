@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Collection;
 use RuntimeException;
 
 class PsnTrophyClient
@@ -149,6 +150,32 @@ class PsnTrophyClient
         return $game->refresh();
     }
 
+    /**
+     * @return array{attempted:int,synced:int,failed:int}
+     */
+    public function refreshActiveTrophyBatch(User $user, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 25));
+        $games = $this->activeRefreshGames($user, $limit);
+        $synced = 0;
+        $failed = 0;
+
+        foreach ($games as $game) {
+            try {
+                $this->syncGame($game);
+                $synced++;
+            } catch (\Throwable) {
+                $failed++;
+            }
+        }
+
+        return [
+            'attempted' => $games->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+        ];
+    }
+
     private function upsertTitle(User $user, array $title): SteamGame
     {
         $npCommunicationId = $title['npCommunicationId'] ?? null;
@@ -216,6 +243,30 @@ class PsnTrophyClient
         }
 
         return $account;
+    }
+
+    /**
+     * @return Collection<int, SteamGame>
+     */
+    private function activeRefreshGames(User $user, int $limit): Collection
+    {
+        return SteamGame::query()
+            ->where('user_id', $user->id)
+            ->where('platform', SteamGame::PLATFORM_PSN)
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_synced_at', '<=', now()->subMinutes(55));
+            })
+            ->where(function ($query): void {
+                $query->where('achievements_total', '>', 0)
+                    ->orWhereNull('achievements_synced_at');
+            })
+            ->orderByDesc('is_current')
+            ->orderByDesc('last_played_at')
+            ->orderByRaw('case when achievements_total > 0 and achievements_unlocked < achievements_total then 0 else 1 end asc')
+            ->orderBy('achievements_synced_at')
+            ->limit($limit)
+            ->get();
     }
 
     private function http(UserPlatformAccount $account): PendingRequest

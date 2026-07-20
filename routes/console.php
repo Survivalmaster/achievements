@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -76,7 +77,43 @@ Artisan::command('steam:refresh-active-achievements {--games=20 : Maximum games 
     return 0;
 })->purpose('Refresh likely-active Steam achievement data for every tracker user');
 
+Artisan::command('psn:refresh-active-trophies {--games=8 : Maximum PSN games to refresh per user}', function (PsnTrophyClient $psn): int {
+    $gamesPerUser = max(1, min((int) $this->option('games'), 25));
+    $totalUsers = 0;
+    $totalSynced = 0;
+    $totalFailed = 0;
+
+    User::query()
+        ->whereHas('platformAccounts', fn ($query) => $query->where('platform', 'psn'))
+        ->orderBy('id')
+        ->each(function (User $user) use ($psn, $gamesPerUser, &$totalUsers, &$totalSynced, &$totalFailed): void {
+            $totalUsers++;
+
+            try {
+                $psn->syncLibrary($user);
+                $result = $psn->refreshActiveTrophyBatch($user, $gamesPerUser);
+
+                $totalSynced += $result['synced'];
+                $totalFailed += $result['failed'];
+
+                $this->info("{$user->name}: refreshed {$result['synced']} PlayStation titles, {$result['failed']} failed.");
+            } catch (Throwable $exception) {
+                $totalFailed++;
+                $this->warn("{$user->name}: {$exception->getMessage()}");
+            }
+        });
+
+    $this->info("Done. Checked {$totalUsers} PSN-linked users, refreshed {$totalSynced} titles, {$totalFailed} failed.");
+
+    return 0;
+})->purpose('Refresh likely-active PlayStation trophy data for every PSN-linked tracker user');
+
 Schedule::command('steam:refresh-active-achievements --games=20')
     ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('psn:refresh-active-trophies --games=8')
+    ->hourly()
     ->withoutOverlapping()
     ->runInBackground();

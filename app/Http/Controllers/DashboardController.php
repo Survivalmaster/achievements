@@ -248,6 +248,7 @@ class DashboardController extends Controller
             'friendActivity' => $this->friendActivity(),
             'staleGames' => $this->staleGames(),
             'psnAccount' => $this->psnAccount(),
+            'externalAccounts' => $this->externalAccounts(),
         ];
     }
 
@@ -275,6 +276,29 @@ class DashboardController extends Controller
         }
 
         return back()->with('status', "Synced {$count} PlayStation trophy titles.");
+    }
+
+    public function linkExternalPlatform(Request $request, string $platform): RedirectResponse
+    {
+        $platform = $this->externalLinkPlatform($platform);
+
+        $data = $request->validate([
+            'display_name' => ['required', 'string', 'max:120'],
+        ]);
+
+        UserPlatformAccount::query()->updateOrCreate(
+            [
+                'user_id' => Auth::id(),
+                'platform' => $platform,
+            ],
+            [
+                'display_name' => $data['display_name'],
+                'linked_at' => now(),
+                'meta' => ['sync_supported' => false],
+            ],
+        );
+
+        return back()->with('status', SteamGame::PLATFORMS[$platform].' account noted. Automatic achievement sync is not available yet.');
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -626,6 +650,22 @@ class DashboardController extends Controller
             ->where('user_id', Auth::id())
             ->where('platform', SteamGame::PLATFORM_PSN)
             ->first();
+    }
+
+    private function externalAccounts()
+    {
+        return UserPlatformAccount::query()
+            ->where('user_id', Auth::id())
+            ->whereIn('platform', [SteamGame::PLATFORM_EPIC, SteamGame::PLATFORM_EA])
+            ->get()
+            ->keyBy('platform');
+    }
+
+    private function externalLinkPlatform(string $platform): string
+    {
+        abort_unless(in_array($platform, [SteamGame::PLATFORM_EPIC, SteamGame::PLATFORM_EA], true), 404);
+
+        return $platform;
     }
 
     private function steamGamesQuery()
