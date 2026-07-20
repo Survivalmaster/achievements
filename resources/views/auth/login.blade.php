@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Unlock Tracker</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('assets/tracker.css') }}">
+    <script src="{{ asset('assets/tracker.js') }}" defer></script>
 </head>
 <body class="auth-screen">
     <main class="login-shell">
