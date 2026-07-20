@@ -482,7 +482,7 @@
                                 @if ($achievement->has_progress)
                                     <div class="achievement-progress" style="--value: {{ $achievement->progress_percent }}%">
                                         <div><span></span></div>
-                                        <strong>{{ number_format($achievement->progress_current) }} / {{ number_format($achievement->progress_target) }}</strong>
+                                        <strong>{{ number_format($achievement->progress_current_value) }} / {{ number_format($achievement->progress_target_value) }}</strong>
                                     </div>
                                 @endif
                                 <form method="POST" action="{{ route('achievements.hunt', $achievement) }}" class="achievement-plan">

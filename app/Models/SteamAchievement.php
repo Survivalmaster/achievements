@@ -69,10 +69,10 @@ class SteamAchievement extends Model
 
     public function getHasProgressAttribute(): bool
     {
-        return $this->progress_current !== null
-            && $this->progress_target !== null
-            && $this->progress_target > 0
-            && $this->progress_current < $this->progress_target;
+        return $this->progress_current_value !== null
+            && $this->progress_target_value !== null
+            && $this->progress_target_value > 0
+            && $this->progress_current_value < $this->progress_target_value;
     }
 
     public function getProgressPercentAttribute(): int
@@ -81,6 +81,34 @@ class SteamAchievement extends Model
             return 0;
         }
 
-        return min(100, (int) round(($this->progress_current / $this->progress_target) * 100));
+        return min(100, (int) round(($this->progress_current_value / $this->progress_target_value) * 100));
+    }
+
+    public function getProgressCurrentValueAttribute(): ?int
+    {
+        if ($this->progress_current !== null) {
+            return $this->progress_current;
+        }
+
+        return $this->progress_target_value !== null && ! $this->achieved ? 0 : null;
+    }
+
+    public function getProgressTargetValueAttribute(): ?int
+    {
+        if ($this->progress_target !== null) {
+            return $this->progress_target;
+        }
+
+        if ($this->achieved || ! $this->description) {
+            return null;
+        }
+
+        if (! preg_match_all('/\b\d{1,9}\b/', $this->description, $matches)) {
+            return null;
+        }
+
+        $target = max(array_map('intval', $matches[0]));
+
+        return $target > 1 ? $target : null;
     }
 }
