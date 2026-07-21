@@ -62,6 +62,11 @@ class OpenXblClient
                 continue;
             }
 
+            if (! $this->isHuntableTitle($title)) {
+                $this->markTitleUnhuntable($user, $title);
+                continue;
+            }
+
             $this->upsertTitle($user, $title);
             $count++;
         }
@@ -231,6 +236,19 @@ class OpenXblClient
             throw new RuntimeException('Link Xbox with an OpenXBL API key first.');
         }
 
+        if (! preg_match('/^\d+$/', (string) $account->account_id)) {
+            $profile = $this->accountProfile((string) $account->access_token);
+            $account->update([
+                'account_id' => $profile['xuid'],
+                'display_name' => $profile['gamertag'],
+                'meta' => array_merge($account->meta ?? [], [
+                    'gamerpic' => $profile['gamerpic'],
+                    'gamerscore' => $profile['gamerscore'],
+                ]),
+            ]);
+            $account->refresh();
+        }
+
         return $account;
     }
 
@@ -280,12 +298,65 @@ class OpenXblClient
         ];
     }
 
+    private function isHuntableTitle(array $title): bool
+    {
+        $achievement = $title['achievement'] ?? [];
+
+        return (int) ($achievement['totalAchievements'] ?? 0) > 0
+            || (int) ($achievement['currentAchievements'] ?? 0) > 0
+            || (int) ($achievement['totalGamerscore'] ?? 0) > 0
+            || (int) ($achievement['currentGamerscore'] ?? 0) > 0
+            || (float) ($achievement['progressPercentage'] ?? 0) > 0;
+    }
+
+    private function markTitleUnhuntable(User $user, array $title): void
+    {
+        $titleId = (string) ($title['titleId'] ?? '');
+
+        if ($titleId === '') {
+            return;
+        }
+
+        SteamGame::query()
+            ->where('user_id', $user->id)
+            ->where('platform', SteamGame::PLATFORM_XBOX)
+            ->where('appid', $this->numericId($titleId))
+            ->update([
+                'achievements_total' => 0,
+                'achievements_unlocked' => 0,
+                'achievements_synced_at' => now(),
+                'synced_at' => now(),
+            ]);
+    }
+
     private function playerAchievements(UserPlatformAccount $account, string $xuid, string $titleId): array
     {
-        return $this->http($account)
+        $achievements = $this->http($account)
             ->get(self::BASE_URL."/achievements/player/{$xuid}/{$titleId}")
             ->throw()
             ->json('content.achievements', []);
+
+        return $achievements !== [] ? $achievements : $this->titleAchievements($account, $titleId);
+    }
+
+    private function titleAchievements(UserPlatformAccount $account, string $titleId): array
+    {
+        $achievements = [];
+        $continuationToken = null;
+
+        do {
+            $payload = $this->http($account)
+                ->get(self::BASE_URL."/achievements/title/{$titleId}", array_filter([
+                    'continuationToken' => $continuationToken,
+                ]))
+                ->throw()
+                ->json('content', []);
+
+            $achievements = array_merge($achievements, $payload['achievements'] ?? []);
+            $continuationToken = $payload['pagingInfo']['continuationToken'] ?? null;
+        } while ($continuationToken);
+
+        return $achievements;
     }
 
     private function http(UserPlatformAccount|string $accountOrKey): PendingRequest

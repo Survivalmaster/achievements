@@ -29,18 +29,18 @@
                 <strong>{{ $overview['completion'] }}%</strong>
             </a>
 
-            <section class="sync-hub">
-                <div class="sync-hub-heading">
+            <section class="sidebar-tools">
+                <div class="sidebar-tools-heading">
                     <h3>Sync & Accounts</h3>
                     <span>{{ $platformCounts['all'] }} games</span>
                 </div>
 
-                <div class="sync-platform">
-                    <div class="sync-platform-head">
+                <div class="sidebar-tool-group">
+                    <div class="sidebar-tool-head">
                         <span class="platform-badge platform-steam"><i></i>Steam</span>
                         <strong>{{ $platformCounts[\App\Models\SteamGame::PLATFORM_STEAM] ?? 0 }}</strong>
                     </div>
-                    <div class="sync-hub-body compact">
+                    <div class="sidebar-tool-body compact">
                         <div class="sync-actions">
                             <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
                                 @csrf
@@ -61,12 +61,12 @@
                     </div>
                 </div>
 
-                <div class="sync-platform">
-                    <div class="sync-platform-head">
+                <div class="sidebar-tool-group">
+                    <div class="sidebar-tool-head">
                         <span class="platform-badge platform-psn"><i></i>PlayStation</span>
                         <strong>{{ $psnAccount ? 'Linked' : 'Link' }}</strong>
                     </div>
-                    <div class="sync-hub-body">
+                    <div class="sidebar-tool-body">
                         @if ($psnAccount)
                             <form method="POST" action="{{ route('psn.sync') }}">
                                 @csrf
@@ -83,12 +83,12 @@
                     </div>
                 </div>
 
-                <div class="sync-platform">
-                    <div class="sync-platform-head">
+                <div class="sidebar-tool-group">
+                    <div class="sidebar-tool-head">
                         <span class="platform-badge platform-xbox"><i></i>Xbox</span>
                         <strong>{{ $xboxAccount ? 'Linked' : 'Link' }}</strong>
                     </div>
-                    <div class="sync-hub-body">
+                    <div class="sidebar-tool-body">
                         @if ($xboxAccount)
                             <form method="POST" action="{{ route('xbox.sync') }}">
                                 @csrf
@@ -115,7 +115,7 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle compact">
+                <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle compact sidebar-preferences">
                     @csrf
                     <label>
                         <input type="checkbox" name="spoiler_safe" value="1" @checked($spoilerSafe) onchange="this.form.submit()">

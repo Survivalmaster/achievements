@@ -267,15 +267,16 @@ a {
     margin-top: 0;
 }
 
-.sync-hub {
+.sidebar-tools {
+    display: block;
     border: 1px solid var(--line);
     border-radius: .45rem;
     background: rgba(255, 255, 255, .035);
     margin: 0 0 .75rem;
-    overflow: hidden;
+    overflow: visible;
 }
 
-.sync-hub-heading {
+.sidebar-tools-heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -284,26 +285,27 @@ a {
     padding: .62rem .7rem;
 }
 
-.sync-hub-heading h3 {
+.sidebar-tools-heading h3 {
     margin: 0;
     font-size: .8rem;
 }
 
-.sync-hub-heading span {
+.sidebar-tools-heading span {
     color: var(--cyan);
     font-size: .72rem;
     font-weight: 850;
 }
 
-.sync-platform {
+.sidebar-tool-group {
+    display: block;
     border-bottom: 1px solid rgba(161, 174, 194, .12);
 }
 
-.sync-platform:last-of-type {
+.sidebar-tool-group:last-of-type {
     border-bottom: 0;
 }
 
-.sync-platform-head {
+.sidebar-tool-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -311,28 +313,28 @@ a {
     padding: .5rem .7rem .35rem;
 }
 
-.sync-platform-head > strong {
+.sidebar-tool-head > strong {
     color: var(--soft);
     font-size: .7rem;
     font-weight: 850;
 }
 
-.sync-hub-body {
+.sidebar-tool-body {
     display: grid;
     gap: .5rem;
     padding: 0 .7rem .65rem;
 }
 
-.sync-hub-body.compact {
+.sidebar-tool-body.compact {
     gap: .45rem;
 }
 
-.sync-hub-body form {
+.sidebar-tool-body form {
     display: grid;
     gap: .45rem;
 }
 
-.sync-hub-body input,
+.sidebar-tool-body input,
 .platform-select-form select {
     min-width: 0;
     border: 1px solid var(--line);
@@ -343,12 +345,12 @@ a {
     padding: .58rem .65rem;
 }
 
-.sync-hub-body input:focus,
+.sidebar-tool-body input:focus,
 .platform-select-form select:focus {
     border-color: rgba(95, 212, 255, .65);
 }
 
-.sync-hub-body button,
+.sidebar-tool-body button,
 .platform-select-form button {
     border: 1px solid rgba(95, 212, 255, .45);
     border-radius: .38rem;
@@ -360,30 +362,30 @@ a {
     padding: .58rem .65rem;
 }
 
-.sync-hub-body small {
+.sidebar-tool-body small {
     display: block;
     color: var(--muted);
     font-size: .72rem;
 }
 
-.sync-hub .sync-actions {
+.sidebar-tools .sync-actions {
     margin: 0;
 }
 
-.sync-hub .refresh-all-row,
-.sync-hub .spoiler-toggle {
+.sidebar-tools .refresh-all-row,
+.sidebar-tools .spoiler-toggle {
     margin: 0;
 }
 
-.sync-hub .sync-row button {
+.sidebar-tools .sync-row button {
     min-height: 2.35rem;
 }
 
-.sync-hub .platform-mini-form {
+.sidebar-tools .platform-mini-form {
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.sync-hub > .spoiler-toggle.compact {
+.sidebar-preferences {
     border-top: 1px solid rgba(161, 174, 194, .12);
     margin: 0;
     padding: .55rem .7rem;
