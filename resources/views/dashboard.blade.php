@@ -29,76 +29,107 @@
                 <strong>{{ $overview['completion'] }}%</strong>
             </a>
 
-            <div class="sync-actions">
-                <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
-                    @csrf
-                    <button type="submit">Steam Library</button>
-                </form>
-
-                <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
-                    @csrf
-                    <button type="submit">Steam Achievements</button>
-                    <span class="sr-only" data-sync-left>{{ $unsyncedGames }} left</span>
-                </form>
-            </div>
-
-            <form method="POST" action="{{ route('sync.refresh-all') }}" class="refresh-all-row" data-refresh-all-games data-refreshable-games="{{ $refreshableGames }}">
-                @csrf
-                <button type="submit">Refresh Steam Games</button>
-            </form>
-
-            <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle">
-                @csrf
-                <label>
-                    <input type="checkbox" name="spoiler_safe" value="1" @checked($spoilerSafe) onchange="this.form.submit()">
-                    <span>Spoiler-safe secrets</span>
-                </label>
-            </form>
-
-            <section class="platform-link-card">
-                <div class="tool-heading">
-                    <h3>PlayStation</h3>
-                    @if ($psnAccount)
-                        <span class="platform-badge platform-psn"><i></i>Linked</span>
-                    @endif
+            <section class="sync-hub">
+                <div class="sync-hub-heading">
+                    <h3>Sync & Accounts</h3>
+                    <span>{{ $platformCounts['all'] }} games</span>
                 </div>
-                @if ($psnAccount)
-                    <form method="POST" action="{{ route('psn.sync') }}">
-                        @csrf
-                        <button type="submit">Sync PlayStation</button>
-                    </form>
-                    <small>{{ $psnAccount->synced_at ? 'Synced '.$psnAccount->synced_at->diffForHumans() : 'Ready to sync trophies' }}</small>
-                @else
-                    <form method="POST" action="{{ route('psn.link') }}">
-                        @csrf
-                        <input name="npsso" type="password" placeholder="Paste NPSSO token" autocomplete="off">
-                        <button type="submit">Link PSN</button>
-                    </form>
-                @endif
-            </section>
 
-            <section class="platform-link-card compact">
-                <div class="tool-heading">
-                    <h3>Xbox</h3>
-                    @if ($xboxAccount)
-                        <span class="platform-badge platform-xbox"><i></i>Linked</span>
-                    @endif
-                </div>
-                @if ($xboxAccount)
-                    <form method="POST" action="{{ route('xbox.sync') }}">
-                        @csrf
-                        <button type="submit">Sync Xbox</button>
-                    </form>
-                    <small>{{ $xboxAccount->synced_at ? 'Synced '.$xboxAccount->synced_at->diffForHumans() : $xboxAccount->display_name.' is ready to sync' }}</small>
-                @endif
-                <form method="POST" action="{{ route('xbox.link') }}" class="platform-mini-form">
-                    @csrf
-                    <input name="api_key" type="password" placeholder="{{ $xboxAccount ? 'Replace OpenXBL key' : 'OpenXBL API key' }}" autocomplete="off">
-                    <button type="submit">{{ $xboxAccount ? 'Save' : 'Link' }}</button>
-                </form>
-                @unless ($xboxAccount)
-                    <small>Paste your personal OpenXBL key to link Xbox.</small>
-                @endunless
+                <details>
+                    <summary>
+                        <span class="platform-badge platform-steam"><i></i>Steam</span>
+                        <strong>{{ $platformCounts[\App\Models\SteamGame::PLATFORM_STEAM] ?? 0 }}</strong>
+                    </summary>
+                    <div class="sync-hub-body">
+                        <div class="sync-actions">
+                            <form method="POST" action="{{ route('sync.library') }}" class="sync-row">
+                                @csrf
+                                <button type="submit">Library</button>
+                            </form>
+
+                            <form method="POST" action="{{ route('sync.achievements') }}" class="sync-row" data-sync-achievements data-unsynced-games="{{ $unsyncedGames }}">
+                                @csrf
+                                <button type="submit">Achievements</button>
+                                <span class="sr-only" data-sync-left>{{ $unsyncedGames }} left</span>
+                            </form>
+                        </div>
+
+                        <form method="POST" action="{{ route('sync.refresh-all') }}" class="refresh-all-row" data-refresh-all-games data-refreshable-games="{{ $refreshableGames }}">
+                            @csrf
+                            <button type="submit">Refresh Steam Games</button>
+                        </form>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>
+                        <span class="platform-badge platform-psn"><i></i>PlayStation</span>
+                        <strong>{{ $psnAccount ? 'Linked' : 'Link' }}</strong>
+                    </summary>
+                    <div class="sync-hub-body">
+                        @if ($psnAccount)
+                            <form method="POST" action="{{ route('psn.sync') }}">
+                                @csrf
+                                <button type="submit">Sync PlayStation</button>
+                            </form>
+                            <small>{{ $psnAccount->synced_at ? 'Synced '.$psnAccount->synced_at->diffForHumans() : 'Ready to sync trophies' }}</small>
+                        @else
+                            <form method="POST" action="{{ route('psn.link') }}">
+                                @csrf
+                                <input name="npsso" type="password" placeholder="Paste NPSSO token" autocomplete="off">
+                                <button type="submit">Link PSN</button>
+                            </form>
+                        @endif
+                    </div>
+                </details>
+
+                <details>
+                    <summary>
+                        <span class="platform-badge platform-xbox"><i></i>Xbox</span>
+                        <strong>{{ $xboxAccount ? 'Linked' : 'Link' }}</strong>
+                    </summary>
+                    <div class="sync-hub-body">
+                        @if ($xboxAccount)
+                            <form method="POST" action="{{ route('xbox.sync') }}">
+                                @csrf
+                                <button type="submit">Sync Xbox</button>
+                            </form>
+                            <small>{{ $xboxAccount->synced_at ? 'Synced '.$xboxAccount->synced_at->diffForHumans() : $xboxAccount->display_name.' is ready to sync' }}</small>
+                        @endif
+                        @if (! $xboxAccount)
+                            <form method="POST" action="{{ route('xbox.link') }}" class="platform-mini-form">
+                                @csrf
+                                @unless ($openXblConfigured)
+                                    <input name="api_key" type="password" placeholder="OpenXBL API key" autocomplete="off">
+                                @endunless
+                                <button type="submit">Link</button>
+                            </form>
+                            <small>{{ $openXblConfigured ? 'Uses the OpenXBL key from .env.' : 'Paste your personal OpenXBL key to link Xbox.' }}</small>
+                        @elseif (! $openXblConfigured)
+                            <form method="POST" action="{{ route('xbox.link') }}" class="platform-mini-form">
+                                @csrf
+                                <input name="api_key" type="password" placeholder="Replace OpenXBL key" autocomplete="off">
+                                <button type="submit">Save</button>
+                            </form>
+                        @endif
+                    </div>
+                </details>
+
+                <details>
+                    <summary>
+                        <span>Preferences</span>
+                        <strong>{{ $spoilerSafe ? 'Safe' : 'Full' }}</strong>
+                    </summary>
+                    <div class="sync-hub-body">
+                        <form method="POST" action="{{ route('spoilers.update') }}" class="spoiler-toggle compact">
+                            @csrf
+                            <label>
+                                <input type="checkbox" name="spoiler_safe" value="1" @checked($spoilerSafe) onchange="this.form.submit()">
+                                <span>Spoiler-safe secrets</span>
+                            </label>
+                        </form>
+                    </div>
+                </details>
             </section>
 
             <div class="game-filters" aria-label="Game filters">
@@ -120,18 +151,17 @@
                 @endforeach
             </div>
 
-            <div class="platform-filters" aria-label="Platform filters">
-                <a class="{{ $platformFilter === 'all' ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $gameFilter, 'platform_filter' => 'all']) }}">
-                    <span class="platform-badge platform-all"><i></i>All</span>
-                    <strong>{{ $platformCounts['all'] }}</strong>
-                </a>
-                @foreach ($platforms as $key => $label)
-                    <a class="{{ $platformFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $gameFilter, 'platform_filter' => $key]) }}">
-                        <span class="platform-badge platform-{{ $key }}"><i></i>{{ $label }}</span>
-                        <strong>{{ $platformCounts[$key] ?? 0 }}</strong>
-                    </a>
-                @endforeach
-            </div>
+            <form method="GET" action="{{ route('dashboard') }}" class="platform-select-form">
+                <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                <label for="platform-filter">Platform</label>
+                <select id="platform-filter" name="platform_filter" onchange="this.form.submit()">
+                    <option value="all" @selected($platformFilter === 'all')>All platforms ({{ $platformCounts['all'] }})</option>
+                    @foreach ($platforms as $key => $label)
+                        <option value="{{ $key }}" @selected($platformFilter === $key)>{{ $label }} ({{ $platformCounts[$key] ?? 0 }})</option>
+                    @endforeach
+                </select>
+                <noscript><button type="submit">Apply</button></noscript>
+            </form>
 
             <input class="game-search" type="search" placeholder="Search games" data-game-search>
 

@@ -261,6 +261,7 @@ class DashboardController extends Controller
             'staleGames' => $this->staleGames(),
             'psnAccount' => $this->psnAccount(),
             'xboxAccount' => $this->xboxAccount(),
+            'openXblConfigured' => (bool) config('services.openxbl.api_key'),
         ];
     }
 
