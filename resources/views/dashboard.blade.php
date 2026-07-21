@@ -29,11 +29,11 @@
                 <strong>{{ $overview['completion'] }}%</strong>
             </a>
 
-            <section class="sidebar-tools">
-                <div class="sidebar-tools-heading">
-                    <h3>Sync & Accounts</h3>
+            <details class="sidebar-tools">
+                <summary class="sidebar-tools-heading">
+                    <h3>Sync Achievements</h3>
                     <span>{{ $platformCounts['all'] }} games</span>
-                </div>
+                </summary>
 
                 <div class="sidebar-tool-group">
                     <div class="sidebar-tool-head">
@@ -122,7 +122,7 @@
                         <span>Spoiler-safe secrets</span>
                     </label>
                 </form>
-            </section>
+            </details>
 
             <form method="GET" action="{{ route('dashboard') }}" class="platform-select-form">
                 <input type="hidden" name="platform_filter" value="{{ $platformFilter }}">

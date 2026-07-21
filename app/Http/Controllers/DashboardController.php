@@ -42,7 +42,10 @@ class DashboardController extends Controller
     {
         $this->authorizeGame($game);
 
-        if ($game->platform_key === SteamGame::PLATFORM_XBOX && ! $game->achievements_synced_at) {
+        if (
+            $game->platform_key === SteamGame::PLATFORM_XBOX
+            && (! $game->achievements_synced_at || ($game->achievements_total > 0 && ! $game->achievements()->exists()))
+        ) {
             try {
                 $xbox->syncGame($game);
                 $game->refresh();

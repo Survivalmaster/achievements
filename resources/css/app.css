@@ -282,7 +282,28 @@ a {
     justify-content: space-between;
     gap: .55rem;
     border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    list-style: none;
     padding: .62rem .7rem;
+}
+
+.sidebar-tools-heading::-webkit-details-marker {
+    display: none;
+}
+
+.sidebar-tools-heading::after {
+    content: "+";
+    color: var(--muted);
+    font-weight: 900;
+    margin-left: auto;
+}
+
+.sidebar-tools[open] .sidebar-tools-heading::after {
+    content: "-";
+}
+
+.sidebar-tools:not([open]) .sidebar-tools-heading {
+    border-bottom: 0;
 }
 
 .sidebar-tools-heading h3 {

@@ -336,6 +336,15 @@ class OpenXblClient
             ->throw()
             ->json('content.achievements', []);
 
+        if ($achievements !== []) {
+            return $achievements;
+        }
+
+        $achievements = $this->http($account)
+            ->get(self::BASE_URL."/achievements/x360/{$xuid}/title/{$titleId}")
+            ->throw()
+            ->json('content.achievements', []);
+
         return $achievements !== [] ? $achievements : $this->titleAchievements($account, $titleId);
     }
 
