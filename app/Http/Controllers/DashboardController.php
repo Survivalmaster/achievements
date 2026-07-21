@@ -38,9 +38,18 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function showGame(Request $request, SteamGame $game, SteamAchievementClient $steam): View
+    public function showGame(Request $request, SteamGame $game, SteamAchievementClient $steam, OpenXblClient $xbox): View
     {
         $this->authorizeGame($game);
+
+        if ($game->platform_key === SteamGame::PLATFORM_XBOX && ! $game->achievements_synced_at) {
+            try {
+                $xbox->syncGame($game);
+                $game->refresh();
+            } catch (Throwable) {
+                // The game page still renders so the manual Refresh button can surface the platform error.
+            }
+        }
 
         $payload = $this->basePayload($request);
         $game->load('huntSetting');
@@ -310,7 +319,7 @@ class DashboardController extends Controller
     {
         try {
             $count = $xbox->syncLibrary($request->user());
-            $refresh = $xbox->refreshActiveAchievementBatch($request->user(), 8);
+            $refresh = $xbox->refreshActiveAchievementBatch($request->user(), 60);
         } catch (Throwable $exception) {
             return back()->with('error', $this->message($exception));
         }

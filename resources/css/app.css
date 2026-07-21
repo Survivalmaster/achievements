@@ -295,41 +295,23 @@ a {
     font-weight: 850;
 }
 
-.sync-hub details {
-    display: block;
+.sync-platform {
     border-bottom: 1px solid rgba(161, 174, 194, .12);
 }
 
-.sync-hub details:last-child {
+.sync-platform:last-of-type {
     border-bottom: 0;
 }
 
-.sync-hub summary {
-    display: flex !important;
+.sync-platform-head {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: .55rem;
-    cursor: pointer;
-    list-style: none;
-    padding: .55rem .7rem;
+    padding: .5rem .7rem .35rem;
 }
 
-.sync-hub summary::-webkit-details-marker {
-    display: none;
-}
-
-.sync-hub summary::after {
-    content: "+";
-    color: var(--muted);
-    font-weight: 900;
-    margin-left: auto;
-}
-
-.sync-hub details[open] summary::after {
-    content: "-";
-}
-
-.sync-hub summary > strong {
+.sync-platform-head > strong {
     color: var(--soft);
     font-size: .7rem;
     font-weight: 850;
@@ -339,6 +321,10 @@ a {
     display: grid;
     gap: .5rem;
     padding: 0 .7rem .65rem;
+}
+
+.sync-hub-body.compact {
+    gap: .45rem;
 }
 
 .sync-hub-body form {
@@ -395,6 +381,12 @@ a {
 
 .sync-hub .platform-mini-form {
     grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sync-hub > .spoiler-toggle.compact {
+    border-top: 1px solid rgba(161, 174, 194, .12);
+    margin: 0;
+    padding: .55rem .7rem;
 }
 
 .sync-actions {

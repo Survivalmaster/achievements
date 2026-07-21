@@ -141,7 +141,7 @@ class OpenXblClient
      */
     public function refreshActiveAchievementBatch(User $user, int $limit = 10): array
     {
-        $limit = max(1, min($limit, 25));
+        $limit = max(1, min($limit, 75));
         $games = $this->activeRefreshGames($user, $limit);
         $synced = 0;
         $failed = 0;
