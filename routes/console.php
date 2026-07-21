@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\OpenXblClient;
 use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
 use Illuminate\Foundation\Inspiring;
@@ -108,12 +109,48 @@ Artisan::command('psn:refresh-active-trophies {--games=8 : Maximum PSN games to 
     return 0;
 })->purpose('Refresh likely-active PlayStation trophy data for every PSN-linked tracker user');
 
+Artisan::command('xbox:refresh-active-achievements {--games=8 : Maximum Xbox games to refresh per user}', function (OpenXblClient $xbox): int {
+    $gamesPerUser = max(1, min((int) $this->option('games'), 25));
+    $totalUsers = 0;
+    $totalSynced = 0;
+    $totalFailed = 0;
+
+    User::query()
+        ->whereHas('platformAccounts', fn ($query) => $query->where('platform', 'xbox'))
+        ->orderBy('id')
+        ->each(function (User $user) use ($xbox, $gamesPerUser, &$totalUsers, &$totalSynced, &$totalFailed): void {
+            $totalUsers++;
+
+            try {
+                $xbox->syncLibrary($user);
+                $result = $xbox->refreshActiveAchievementBatch($user, $gamesPerUser);
+
+                $totalSynced += $result['synced'];
+                $totalFailed += $result['failed'];
+
+                $this->info("{$user->name}: refreshed {$result['synced']} Xbox titles, {$result['failed']} failed.");
+            } catch (Throwable $exception) {
+                $totalFailed++;
+                $this->warn("{$user->name}: {$exception->getMessage()}");
+            }
+        });
+
+    $this->info("Done. Checked {$totalUsers} Xbox-linked users, refreshed {$totalSynced} titles, {$totalFailed} failed.");
+
+    return 0;
+})->purpose('Refresh likely-active Xbox achievement data for every Xbox-linked tracker user');
+
 Schedule::command('steam:refresh-active-achievements --games=20')
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->runInBackground();
 
 Schedule::command('psn:refresh-active-trophies --games=8')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('xbox:refresh-active-achievements --games=8')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();

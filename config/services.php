@@ -41,6 +41,11 @@ return [
         'language' => env('STEAM_LANGUAGE', 'en'),
     ],
 
+    'openxbl' => [
+        'api_key' => env('OPENXBL_API_KEY'),
+        'language' => env('OPENXBL_LANGUAGE', 'en-US'),
+    ],
+
     'dashboard' => [
         'password' => env('DASHBOARD_PASSWORD'),
     ],

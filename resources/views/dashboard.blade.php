@@ -84,12 +84,21 @@
                         <span class="platform-badge platform-xbox"><i></i>Linked</span>
                     @endif
                 </div>
+                @if ($xboxAccount)
+                    <form method="POST" action="{{ route('xbox.sync') }}">
+                        @csrf
+                        <button type="submit">Sync Xbox</button>
+                    </form>
+                    <small>{{ $xboxAccount->synced_at ? 'Synced '.$xboxAccount->synced_at->diffForHumans() : $xboxAccount->display_name.' is ready to sync' }}</small>
+                @endif
                 <form method="POST" action="{{ route('xbox.link') }}" class="platform-mini-form">
                     @csrf
-                    <input name="gamertag" value="{{ $xboxAccount?->display_name }}" placeholder="Xbox gamertag" autocomplete="off">
+                    <input name="api_key" type="password" placeholder="{{ $xboxAccount ? 'Replace OpenXBL key' : 'OpenXBL API key' }}" autocomplete="off">
                     <button type="submit">{{ $xboxAccount ? 'Save' : 'Link' }}</button>
                 </form>
-                <small>Xbox sync is staged for the Microsoft OAuth integration.</small>
+                @unless ($xboxAccount)
+                    <small>Paste your personal OpenXBL key to link Xbox.</small>
+                @endunless
             </section>
 
             <div class="game-filters" aria-label="Game filters">

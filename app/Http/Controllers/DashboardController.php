@@ -8,6 +8,7 @@ use App\Models\SteamGame;
 use App\Models\TrackerSetting;
 use App\Models\User;
 use App\Models\UserPlatformAccount;
+use App\Services\OpenXblClient;
 use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
 use Illuminate\Http\JsonResponse;
@@ -289,26 +290,31 @@ class DashboardController extends Controller
         return back()->with('status', "Synced {$count} PlayStation trophy titles.");
     }
 
-    public function linkXbox(Request $request): RedirectResponse
+    public function linkXbox(Request $request, OpenXblClient $xbox): RedirectResponse
     {
         $data = $request->validate([
-            'gamertag' => ['required', 'string', 'min:2', 'max:32'],
+            'api_key' => ['nullable', 'string', 'min:20', 'max:255'],
         ]);
 
-        UserPlatformAccount::query()->updateOrCreate(
-            [
-                'user_id' => $request->user()->id,
-                'platform' => SteamGame::PLATFORM_XBOX,
-            ],
-            [
-                'account_id' => $data['gamertag'],
-                'display_name' => $data['gamertag'],
-                'linked_at' => now(),
-                'meta' => ['sync_status' => 'oauth_required'],
-            ],
-        );
+        try {
+            $account = $xbox->link($request->user(), $data['api_key'] ?? null);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
 
-        return back()->with('status', 'Xbox gamertag saved. Full Xbox sync needs the Microsoft OAuth bridge next.');
+        return back()->with('status', "Xbox linked as {$account->display_name}. Sync Xbox to pull your titles.");
+    }
+
+    public function syncXboxLibrary(Request $request, OpenXblClient $xbox): RedirectResponse
+    {
+        try {
+            $count = $xbox->syncLibrary($request->user());
+            $refresh = $xbox->refreshActiveAchievementBatch($request->user(), 8);
+        } catch (Throwable $exception) {
+            return back()->with('error', $this->message($exception));
+        }
+
+        return back()->with('status', "Synced {$count} Xbox titles and refreshed {$refresh['synced']} achievement lists.");
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -454,7 +460,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
+    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, OpenXblClient $xbox): RedirectResponse
     {
         $this->authorizeGame($game);
         $beforeUnlocked = $game->achievements_unlocked;
@@ -467,6 +473,8 @@ class DashboardController extends Controller
             } elseif ($game->platform_key === SteamGame::PLATFORM_STEAM) {
                 $steam->syncLibrary();
                 $steam->syncAchievements($game);
+            } elseif ($game->platform_key === SteamGame::PLATFORM_XBOX) {
+                $xbox->syncGame($game);
             } else {
                 throw new RuntimeException("{$game->platform_label} sync is not wired up yet.");
             }
@@ -504,7 +512,7 @@ class DashboardController extends Controller
         return back()->with('status', "Tonight's Hunt targets marked.");
     }
 
-    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
+    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, OpenXblClient $xbox): RedirectResponse
     {
         $this->authorizeGame($game);
 
@@ -517,6 +525,8 @@ class DashboardController extends Controller
                     $psn->syncGame($game);
                 } elseif ($game->platform_key === SteamGame::PLATFORM_STEAM) {
                     $steam->syncAchievements($game);
+                } elseif ($game->platform_key === SteamGame::PLATFORM_XBOX) {
+                    $xbox->syncGame($game);
                 }
             } catch (Throwable $exception) {
                 return back()->with('error', $this->message($exception));

@@ -16,6 +16,7 @@ Route::middleware('dashboard.auth')->group(function (): void {
     Route::post('/psn/link', [DashboardController::class, 'linkPsn'])->name('psn.link');
     Route::post('/psn/sync', [DashboardController::class, 'syncPsnLibrary'])->name('psn.sync');
     Route::post('/xbox/link', [DashboardController::class, 'linkXbox'])->name('xbox.link');
+    Route::post('/xbox/sync', [DashboardController::class, 'syncXboxLibrary'])->name('xbox.sync');
     Route::post('/sync/library', [DashboardController::class, 'syncLibrary'])->name('sync.library');
     Route::post('/sync/achievements', [DashboardController::class, 'syncAchievements'])->name('sync.achievements');
     Route::post('/sync/refresh-all', [DashboardController::class, 'refreshAllAchievements'])->name('sync.refresh-all');
