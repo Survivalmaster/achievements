@@ -131,6 +131,10 @@ class DashboardController extends Controller
             'compareUser' => $compareUser,
             'compareStats' => $compareStats,
             'comparison' => $comparison,
+            'relatedGames' => $this->relatedPlatformGames($game),
+            'trackerCompareUsers' => $this->trackerCompareUsers($game),
+            'trackerCompareId' => (int) $request->query('compare_user_id', 0),
+            'trackerComparison' => $this->trackerComparison($game, (int) $request->query('compare_user_id', 0)),
         ]);
     }
 
@@ -212,6 +216,8 @@ class DashboardController extends Controller
             ? $this->supportedGamesQuery()->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
             : clone $baseGamesQuery;
 
+        $hideFinished = TrackerSetting::value('hide_finished:'.Auth::id(), '0') === '1';
+
         if ($gameFilter === 'archived' && $supportsPlatform) {
             $gamesQuery->whereIn('platform', array_keys(SteamGame::PLATFORMS));
         }
@@ -230,6 +236,14 @@ class DashboardController extends Controller
             $gamesQuery->whereNull('achievements_synced_at');
         } elseif ($gameFilter !== 'archived') {
             $gameFilter = 'all';
+        }
+
+        if ($hideFinished && ! in_array($gameFilter, ['completed', 'archived'], true)) {
+            $gamesQuery->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_total', 0)
+                    ->orWhereColumn('achievements_unlocked', '<', 'achievements_total');
+            });
         }
 
         $games = $gamesQuery
@@ -262,12 +276,19 @@ class DashboardController extends Controller
                 })
                 ->count(),
             'spoilerSafe' => $spoilerSafe,
+            'hideFinished' => $hideFinished,
             'recentAchievements' => $this->recentAchievements(),
             'roadmapGames' => $this->roadmapGames(),
             'rarestUnlocked' => $this->rareAchievements(true),
             'rarestMissing' => $this->rareAchievements(false),
             'plannedAchievements' => $this->plannedAchievements(),
             'tonightAchievements' => $this->tonightAchievements(),
+            'smartRecommendations' => $this->smartRecommendations(),
+            'huntBoard' => $this->huntBoard(),
+            'platformHealth' => $this->platformHealth(),
+            'needsRefreshGames' => $this->needsRefreshGames(),
+            'crossPlatformGroups' => $this->crossPlatformGroups(),
+            'syncIssues' => $this->syncIssues(),
             'refreshStatus' => $this->refreshStatus(),
             'friendActivity' => $this->friendActivity(),
             'staleGames' => $this->staleGames(),
@@ -286,7 +307,9 @@ class DashboardController extends Controller
         try {
             $psn->link($request->user(), $data['npsso']);
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue('PSN', 'Link PlayStation', $message);
+            return back()->with('error', $message);
         }
 
         return back()->with('status', 'PSN linked. Sync PlayStation to pull your trophy titles.');
@@ -297,7 +320,9 @@ class DashboardController extends Controller
         try {
             $count = $psn->syncLibrary($request->user());
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue('PSN', 'Sync PlayStation', $message);
+            return back()->with('error', $message);
         }
 
         return back()->with('status', "Synced {$count} PlayStation trophy titles.");
@@ -312,7 +337,9 @@ class DashboardController extends Controller
         try {
             $account = $xbox->link($request->user(), $data['api_key'] ?? null);
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Xbox', 'Link Xbox', $message);
+            return back()->with('error', $message);
         }
 
         return back()->with('status', "Xbox linked as {$account->display_name}. Sync Xbox to pull your titles.");
@@ -324,7 +351,9 @@ class DashboardController extends Controller
             $count = $xbox->syncLibrary($request->user());
             $refresh = $xbox->refreshActiveAchievementBatch($request->user(), 60);
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Xbox', 'Sync Xbox', $message);
+            return back()->with('error', $message);
         }
 
         return back()->with('status', "Synced {$count} Xbox titles and refreshed {$refresh['synced']} achievement lists.");
@@ -335,7 +364,9 @@ class DashboardController extends Controller
         try {
             $count = $steam->syncLibrary();
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Steam', 'Sync Library', $message);
+            return back()->with('error', $message);
         }
 
         return back()->with('status', "Synced {$count} Steam games.");
@@ -355,11 +386,13 @@ class DashboardController extends Controller
                 $result['refreshed'] = true;
             }
         } catch (Throwable $exception) {
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Steam', 'Sync Achievements', $message);
             if ($request->expectsJson()) {
-                return response()->json(['message' => $this->message($exception)], 500);
+                return response()->json(['message' => $message], 500);
             }
 
-            return back()->with('error', $this->message($exception));
+            return back()->with('error', $message);
         }
 
         if ($result['attempted'] === 0) {
@@ -395,11 +428,13 @@ class DashboardController extends Controller
 
             $result = $steam->refreshAllAchievementBatch($afterId, 15);
         } catch (Throwable $exception) {
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Steam', 'Refresh All Games', $message);
             if ($request->expectsJson()) {
-                return response()->json(['message' => $this->message($exception)], 500);
+                return response()->json(['message' => $message], 500);
             }
 
-            return back()->with('error', $this->message($exception));
+            return back()->with('error', $message);
         }
 
         if ($request->expectsJson()) {
@@ -456,7 +491,9 @@ class DashboardController extends Controller
 
             $result = $steam->refreshActiveAchievementBatch(10);
         } catch (Throwable $exception) {
-            return response()->json(['message' => $this->message($exception)], 500);
+            $message = $this->message($exception);
+            $this->recordSyncIssue('Steam', 'Quick Refresh', $message);
+            return response()->json(['message' => $message], 500);
         }
 
         $attempted = $result['attempted'] + $focusedSynced + $focusedFailed;
@@ -492,7 +529,9 @@ class DashboardController extends Controller
                 throw new RuntimeException("{$game->platform_label} sync is not wired up yet.");
             }
         } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
+            $message = $this->message($exception);
+            $this->recordSyncIssue($game->platform_label, "Refresh {$game->name}", $message);
+            return back()->with('error', $message);
         }
 
         $game->refresh();
@@ -542,7 +581,9 @@ class DashboardController extends Controller
                     $xbox->syncGame($game);
                 }
             } catch (Throwable $exception) {
-                return back()->with('error', $this->message($exception));
+                $message = $this->message($exception);
+                $this->recordSyncIssue($game->platform_label, "Set Current {$game->name}", $message);
+                return back()->with('error', $message);
             }
         }
 
@@ -563,15 +604,25 @@ class DashboardController extends Controller
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:2000'],
             'tags' => ['nullable', 'string', 'max:255'],
+            'tag_presets' => ['nullable', 'array'],
+            'tag_presets.*' => ['string', 'in:DLC,Co-op,Online,Missable,Grind,Buggy,Collectibles'],
             'difficulty' => ['nullable', 'in:easy,normal,hard,grind,buggy,multiplayer,missable'],
             'archived' => ['nullable', 'boolean'],
         ]);
+
+        $tags = collect(explode(',', (string) ($data['tags'] ?? '')))
+            ->map(fn (string $tag): string => trim($tag))
+            ->filter()
+            ->merge($data['tag_presets'] ?? [])
+            ->unique(fn (string $tag): string => strtolower($tag))
+            ->take(10)
+            ->implode(', ');
 
         $game->huntSetting()->updateOrCreate(
             ['steam_game_id' => $game->id],
             [
                 'note' => $data['note'] ?? null,
-                'tags' => $data['tags'] ?? null,
+                'tags' => $tags ?: null,
                 'difficulty' => $data['difficulty'] ?? null,
                 'archived' => (bool) ($data['archived'] ?? false),
             ],
@@ -651,6 +702,20 @@ class DashboardController extends Controller
         return back()->with('status', 'Secret achievement display updated.');
     }
 
+    public function updateFilters(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'hide_finished' => ['nullable', 'boolean'],
+        ]);
+
+        TrackerSetting::query()->updateOrCreate(
+            ['key' => 'hide_finished:'.Auth::id()],
+            ['value' => (bool) ($data['hide_finished'] ?? false) ? '1' : '0'],
+        );
+
+        return back()->with('status', 'Game list preference updated.');
+    }
+
     private function gameFilter(mixed $filter): string
     {
         return in_array($filter, ['all', 'in_progress', 'completed', 'unchecked', 'archived'], true) ? $filter : 'all';
@@ -726,6 +791,154 @@ class DashboardController extends Controller
         }
 
         return $query;
+    }
+
+    private function platformHealth(): array
+    {
+        return collect(SteamGame::PLATFORMS)->mapWithKeys(function (string $label, string $platform): array {
+            $query = $this->supportedGamesQuery()->where('platform', $platform);
+            $account = $platform === SteamGame::PLATFORM_STEAM ? null : UserPlatformAccount::query()
+                ->where('user_id', Auth::id())
+                ->where('platform', $platform)
+                ->first();
+            $lastGameSync = (clone $query)->whereNotNull('synced_at')->max('synced_at');
+            $lastAchievementSync = (clone $query)->whereNotNull('achievements_synced_at')->max('achievements_synced_at');
+
+            return [$platform => [
+                'label' => $label,
+                'linked' => $platform === SteamGame::PLATFORM_STEAM ? (bool) config('services.steam.api_key') : (bool) $account,
+                'games' => (clone $query)->count(),
+                'huntable' => (clone $query)->where('achievements_total', '>', 0)->count(),
+                'unchecked' => (clone $query)->whereNull('achievements_synced_at')->count(),
+                'stale' => (clone $query)->where('achievements_total', '>', 0)->where('achievements_synced_at', '<', now()->subDay())->count(),
+                'synced_at' => $account?->synced_at ?? ($lastAchievementSync ? Carbon::parse($lastAchievementSync) : ($lastGameSync ? Carbon::parse($lastGameSync) : null)),
+            ]];
+        })->all();
+    }
+
+    private function needsRefreshGames()
+    {
+        return $this->supportedGamesQuery()
+            ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
+            ->where(function ($query): void {
+                $query->whereNull('achievements_synced_at')
+                    ->orWhere('achievements_synced_at', '<', now()->subDay())
+                    ->orWhere(function ($query): void {
+                        $query->where('achievements_total', '>', 0)
+                            ->whereDoesntHave('achievements');
+                    });
+            })
+            ->orderByRaw('achievements_synced_at is not null')
+            ->orderBy('achievements_synced_at')
+            ->limit(8)
+            ->get();
+    }
+
+    private function crossPlatformGroups()
+    {
+        return $this->supportedGamesQuery()
+            ->with('huntSetting')
+            ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
+            ->where('achievements_total', '>', 0)
+            ->get()
+            ->groupBy(fn (SteamGame $game): string => $this->gameMatchKey($game->name))
+            ->filter(fn ($games): bool => $games->pluck('platform_key')->unique()->count() > 1)
+            ->sortByDesc(fn ($games): int => $games->count())
+            ->take(6)
+            ->values();
+    }
+
+    private function relatedPlatformGames(SteamGame $game)
+    {
+        return $this->supportedGamesQuery()
+            ->whereKeyNot($game->id)
+            ->where('achievements_total', '>', 0)
+            ->get()
+            ->filter(fn (SteamGame $candidate): bool => $this->gameMatchKey($candidate->name) === $this->gameMatchKey($game->name))
+            ->values();
+    }
+
+    private function gameMatchKey(string $name): string
+    {
+        $key = strtolower($name);
+        $key = preg_replace('/\b(remaster(ed)?|definitive|deluxe|standard|complete|ultimate|goty|game of the year|edition|legacy|ps4|ps5|xbox|series x|windows)\b/', '', $key);
+
+        return preg_replace('/[^a-z0-9]+/', '', $key) ?: strtolower($name);
+    }
+
+    private function trackerCompareUsers(SteamGame $game)
+    {
+        $identity = $this->gameIdentityQuery($game);
+
+        return User::query()
+            ->whereKeyNot(Auth::id())
+            ->whereHas('steamGames', $identity)
+            ->orderBy('name')
+            ->limit(25)
+            ->get();
+    }
+
+    private function trackerComparison(SteamGame $game, int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $friend = User::query()->whereKeyNot(Auth::id())->whereKey($userId)->first();
+
+        if (! $friend) {
+            return [];
+        }
+
+        $friendGame = SteamGame::query()
+            ->where('user_id', $friend->id)
+            ->where($this->gameIdentityQuery($game))
+            ->with('achievements')
+            ->first();
+
+        if (! $friendGame) {
+            return [];
+        }
+
+        $friendAchievements = $friendGame->achievements->keyBy('apiname');
+        $rows = $game->achievements()
+            ->orderBy('achieved')
+            ->orderBy('name')
+            ->get()
+            ->map(function (SteamAchievement $achievement) use ($friendAchievements): array {
+                $friendAchievement = $friendAchievements->get($achievement->apiname);
+
+                return [
+                    'name' => $achievement->name,
+                    'you' => $achievement->achieved,
+                    'friend' => (bool) ($friendAchievement?->achieved ?? false),
+                ];
+            });
+
+        return [
+            'user' => $friend,
+            'stats' => [
+                'you' => "{$game->achievements_unlocked}/{$game->achievements_total}",
+                'friend' => "{$friendGame->achievements_unlocked}/{$friendGame->achievements_total}",
+                'both_missing' => $rows->filter(fn ($row) => ! $row['you'] && ! $row['friend'])->count(),
+                'only_you' => $rows->filter(fn ($row) => $row['you'] && ! $row['friend'])->count(),
+                'only_friend' => $rows->filter(fn ($row) => ! $row['you'] && $row['friend'])->count(),
+            ],
+            'rows' => $rows->take(12),
+        ];
+    }
+
+    private function gameIdentityQuery(SteamGame $game): callable
+    {
+        return function ($query) use ($game): void {
+            $query->where('platform', $game->platform_key);
+
+            if ($game->external_id) {
+                $query->where('external_id', $game->external_id);
+            } else {
+                $query->where('appid', $game->appid);
+            }
+        };
     }
 
     private function roadmapGames()
@@ -825,6 +1038,81 @@ class DashboardController extends Controller
         }
 
         return $score;
+    }
+
+    private function smartRecommendations()
+    {
+        return SteamAchievement::query()
+            ->with(['game', 'huntSetting'])
+            ->where('achieved', false)
+            ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('status', 'ignore'))
+            ->whereHas('game', function ($query): void {
+                $query
+                    ->where('user_id', Auth::id())
+                    ->when(Schema::hasColumn('steam_games', 'platform'), fn ($query) => $query->whereIn('platform', array_keys(SteamGame::PLATFORMS)))
+                    ->where('achievements_total', '>', 0)
+                    ->whereColumn('achievements_unlocked', '<', 'achievements_total')
+                    ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
+            })
+            ->limit(300)
+            ->get()
+            ->map(function (SteamAchievement $achievement): array {
+                $game = $achievement->game;
+                $remaining = $game ? $game->achievements_total - $game->achievements_unlocked : null;
+                $reason = match (true) {
+                    ($achievement->huntSetting?->status ?? 'none') === 'target' => 'Already targeted',
+                    $game?->last_played_at && $game->last_played_at->gt(now()->subDays(14)) => 'Recent momentum',
+                    $remaining !== null && $remaining <= 5 => 'Close completion',
+                    $achievement->global_percent !== null && (float) $achievement->global_percent <= 5 => 'Rare chase',
+                    ($achievement->huntSetting?->status ?? 'none') === 'later' => 'Saved for later',
+                    default => 'Balanced pick',
+                };
+
+                return [
+                    'achievement' => $achievement,
+                    'score' => $this->huntScore($achievement),
+                    'reason' => $reason,
+                ];
+            })
+            ->sortByDesc('score')
+            ->take(6)
+            ->values();
+    }
+
+    private function huntBoard(): array
+    {
+        $base = AchievementHuntSetting::query()
+            ->with('achievement.game')
+            ->whereHas('achievement.game', fn ($query) => $this->supportedGameRelation($query))
+            ->whereHas('achievement', fn ($query) => $query->where('achieved', false));
+
+        $tagGroup = function (string $needle) use ($base) {
+            return (clone $base)
+                ->where(function ($query) use ($needle): void {
+                    $query->where('difficulty', $needle)
+                        ->orWhere('tags', 'like', "%{$needle}%");
+                })
+                ->latest('updated_at')
+                ->limit(5)
+                ->get();
+        };
+
+        return [
+            'Targets' => (clone $base)->where('status', 'target')->latest('updated_at')->limit(5)->get(),
+            'Later' => (clone $base)->where('status', 'later')->latest('updated_at')->limit(5)->get(),
+            'Grinds' => $tagGroup('grind'),
+            'Missables' => $tagGroup('missable'),
+            'Co-op' => (clone $base)
+                ->where(function ($query): void {
+                    $query->where('difficulty', 'multiplayer')
+                        ->orWhere('tags', 'like', '%co-op%')
+                        ->orWhere('tags', 'like', '%coop%')
+                        ->orWhere('tags', 'like', '%online%');
+                })
+                ->latest('updated_at')
+                ->limit(5)
+                ->get(),
+        ];
     }
 
     private function overviewStats(): array
@@ -973,6 +1261,45 @@ class DashboardController extends Controller
                 'failed' => $failed,
                 'ran_at' => now()->toIso8601String(),
             ])],
+        );
+    }
+
+    private function syncIssues()
+    {
+        $payload = TrackerSetting::value('sync_issues:'.Auth::id(), '[]');
+
+        return collect(json_decode($payload, true) ?: [])
+            ->map(function (array $issue): array {
+                return [
+                    'platform' => $issue['platform'] ?? 'Tracker',
+                    'label' => $issue['label'] ?? 'Sync issue',
+                    'message' => $issue['message'] ?? 'No details recorded.',
+                    'ran_at' => isset($issue['ran_at']) ? Carbon::parse($issue['ran_at']) : null,
+                ];
+            });
+    }
+
+    private function recordSyncIssue(string $platform, string $label, string $message): void
+    {
+        $issues = $this->syncIssues()
+            ->map(fn (array $issue): array => [
+                'platform' => $issue['platform'],
+                'label' => $issue['label'],
+                'message' => $issue['message'],
+                'ran_at' => $issue['ran_at']?->toIso8601String(),
+            ])
+            ->prepend([
+                'platform' => $platform,
+                'label' => $label,
+                'message' => substr($message, 0, 240),
+                'ran_at' => now()->toIso8601String(),
+            ])
+            ->take(10)
+            ->values();
+
+        TrackerSetting::query()->updateOrCreate(
+            ['key' => 'sync_issues:'.Auth::id()],
+            ['value' => $issues->toJson()],
         );
     }
 

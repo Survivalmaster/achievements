@@ -23,6 +23,7 @@ Route::middleware('dashboard.auth')->group(function (): void {
     Route::post('/sync/quick-refresh', [DashboardController::class, 'quickRefreshAchievements'])->name('sync.quick-refresh');
     Route::post('/hunt-session/start', [DashboardController::class, 'startHuntSession'])->name('hunt-session.start');
     Route::post('/spoilers', [DashboardController::class, 'updateSpoilers'])->name('spoilers.update');
+    Route::post('/filters', [DashboardController::class, 'updateFilters'])->name('filters.update');
     Route::get('/games/{game}', [DashboardController::class, 'showGame'])->name('games.show');
     Route::post('/games/{game}/current', [DashboardController::class, 'setCurrent'])->name('games.current');
     Route::post('/games/{game}/hunt', [DashboardController::class, 'updateGame'])->name('games.hunt');

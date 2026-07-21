@@ -1553,6 +1553,17 @@ a {
     color: #b8e8ff;
 }
 
+.source-pill {
+    flex: 0 0 auto;
+    border: 1px solid rgba(112, 211, 255, .3);
+    border-radius: 999px;
+    color: var(--soft);
+    font-size: .66rem;
+    font-weight: 900;
+    padding: .12rem .42rem;
+    text-transform: uppercase;
+}
+
 .achievement-copy p {
     min-height: 2.4rem;
     margin: .35rem 0 .6rem;
@@ -1746,5 +1757,106 @@ a {
     .achievement-icon {
         width: 3.5rem;
         height: 3.5rem;
+    }
+}
+
+.platform-health-grid,
+.hunt-board,
+.related-platforms {
+    display: grid;
+    gap: .75rem;
+}
+
+.platform-health-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.platform-health-grid > div,
+.platform-match-card,
+.hunt-board > div {
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    background: rgba(12, 19, 30, .52);
+    padding: .8rem;
+}
+
+.platform-health-grid strong,
+.platform-match-card strong,
+.hunt-board > div > strong {
+    display: block;
+    margin-top: .5rem;
+    color: var(--text);
+    font-size: 1.15rem;
+}
+
+.platform-health-grid small,
+.platform-health-grid em,
+.platform-match-card small,
+.hunt-board small {
+    display: block;
+    color: var(--muted);
+    font-size: .78rem;
+    font-style: normal;
+    margin-top: .25rem;
+}
+
+.platform-match-row span {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+.platform-match-row .platform-badge {
+    text-decoration: none;
+}
+
+.related-platforms {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.related-platforms .tool-heading {
+    grid-column: 1 / -1;
+}
+
+.platform-match-card {
+    color: inherit;
+    text-decoration: none;
+}
+
+.quick-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+
+.quick-tags label {
+    cursor: pointer;
+}
+
+.quick-tags input {
+    position: absolute;
+    opacity: 0;
+}
+
+.quick-tags span {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--soft);
+    font-size: .76rem;
+    font-weight: 800;
+    padding: .28rem .55rem;
+}
+
+.quick-tags input:checked + span {
+    border-color: rgba(95, 212, 255, .65);
+    background: rgba(47, 192, 255, .14);
+    color: #dff6ff;
+}
+
+@media (max-width: 900px) {
+    .platform-health-grid {
+        grid-template-columns: 1fr;
     }
 }

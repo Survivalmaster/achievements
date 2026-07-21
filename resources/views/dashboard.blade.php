@@ -122,6 +122,14 @@
                         <span>Spoiler-safe secrets</span>
                     </label>
                 </form>
+
+                <form method="POST" action="{{ route('filters.update') }}" class="spoiler-toggle compact sidebar-preferences">
+                    @csrf
+                    <label>
+                        <input type="checkbox" name="hide_finished" value="1" @checked($hideFinished) onchange="this.form.submit()">
+                        <span>Hide completed games</span>
+                    </label>
+                </form>
             </details>
 
             <form method="GET" action="{{ route('dashboard') }}" class="platform-select-form">
@@ -296,9 +304,95 @@
                             <p>No unlocked rarity data yet.</p>
                         @endforelse
                     </article>
+
+                    <article class="command-panel">
+                        <h3>Smart Picks</h3>
+                        @forelse ($smartRecommendations as $pick)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $pick['achievement']->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
+                                <strong>{{ $pick['achievement']->name }}</strong>
+                                <span>{{ $pick['reason'] }} / {{ $pick['achievement']->game->name }}</span>
+                            </a>
+                        @empty
+                            <p>No recommendations yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="command-panel wide">
+                        <h3>Achievement Hunt Board</h3>
+                        <div class="hunt-board">
+                            @foreach ($huntBoard as $label => $items)
+                                <div>
+                                    <strong>{{ $label }}</strong>
+                                    @forelse ($items as $setting)
+                                        <a class="mini-row link-row" href="{{ route('games.show', ['game' => $setting->achievement->game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
+                                            <span>{{ $setting->achievement->name }}</span>
+                                            <small>{{ $setting->achievement->game->name }}</small>
+                                        </a>
+                                    @empty
+                                        <small>Nothing parked here.</small>
+                                    @endforelse
+                                </div>
+                            @endforeach
+                        </div>
+                    </article>
                 </section>
 
                 <section class="analytics-grid">
+                    <article class="analytics-panel wide">
+                        <div class="tool-heading"><h3>Platform Health</h3><span class="soft-label">Sync coverage</span></div>
+                        <div class="platform-health-grid">
+                            @foreach ($platformHealth as $key => $health)
+                                <div>
+                                    <span class="platform-badge platform-{{ $key }}"><i></i>{{ $health['label'] }}</span>
+                                    <strong>{{ $health['huntable'] }}/{{ $health['games'] }}</strong>
+                                    <small>{{ $health['linked'] ? 'Linked' : 'Not linked' }} / {{ $health['unchecked'] }} unchecked / {{ $health['stale'] }} stale</small>
+                                    <em>{{ $health['synced_at'] ? 'Synced '.$health['synced_at']->diffForHumans() : 'No sync yet' }}</em>
+                                </div>
+                            @endforeach
+                        </div>
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Needs Refresh</h3></div>
+                        @forelse ($needsRefreshGames as $game)
+                            <a class="mini-row link-row" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
+                                <strong>{{ $game->name }}</strong>
+                                <span>{{ $game->platform_label }} / {{ $game->achievements_synced_at?->diffForHumans() ?? 'Never checked' }}</span>
+                            </a>
+                        @empty
+                            <p>No urgent refreshes.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Cross-Platform Matches</h3></div>
+                        @forelse ($crossPlatformGroups as $group)
+                            <div class="mini-row platform-match-row">
+                                <strong>{{ $group->first()->name }}</strong>
+                                <span>
+                                    @foreach ($group as $game)
+                                        <a class="platform-badge {{ $game->platform_class }}" href="{{ route('games.show', ['game' => $game, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}"><i></i>{{ $game->platform_label }}</a>
+                                    @endforeach
+                                </span>
+                            </div>
+                        @empty
+                            <p>No same-game platform overlaps yet.</p>
+                        @endforelse
+                    </article>
+
+                    <article class="analytics-panel">
+                        <div class="tool-heading"><h3>Sync Log</h3><span class="soft-label">Recent failures</span></div>
+                        @forelse ($syncIssues as $issue)
+                            <div class="mini-row">
+                                <strong>{{ $issue['platform'] }} / {{ $issue['label'] }}</strong>
+                                <span>{{ $issue['message'] }}</span>
+                                <small>{{ $issue['ran_at']?->diffForHumans() }}</small>
+                            </div>
+                        @empty
+                            <p>No recent sync issues recorded.</p>
+                        @endforelse
+                    </article>
+
                     <article class="analytics-panel wide">
                         <div class="tool-heading">
                             <h3>Completion Spread</h3>
@@ -420,9 +514,7 @@
                         <a href="{{ $currentGame->steam_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Store</a>
                         <a href="{{ $currentGame->achievements_url }}" target="_blank" rel="noreferrer">{{ $currentGame->platform_label }} Achievements</a>
                         <a href="{{ $currentGame->guides_url }}" target="_blank" rel="noreferrer">Guides</a>
-                        @if ($currentGame->platform_key === \App\Models\SteamGame::PLATFORM_STEAM)
-                            <a href="#friend-compare">Compare</a>
-                        @endif
+                        <a href="#friend-compare">Compare</a>
                         <form method="POST" action="{{ route('games.refresh', $currentGame) }}">
                             @csrf
                             <button type="submit" class="refresh-button">Refresh</button>
@@ -435,6 +527,19 @@
                     <div><strong>{{ $achievements->where('hidden', true)->count() }}</strong><span>Secret shown</span></div>
                     <div><strong>{{ $achievements->filter(fn ($achievement) => $achievement->global_percent && $achievement->global_percent <= 10)->count() }}</strong><span>Rare in view</span></div>
                 </section>
+
+                @if ($relatedGames->isNotEmpty())
+                    <section class="related-platforms">
+                        <div class="tool-heading"><h3>Also Tracked On</h3></div>
+                        @foreach ($relatedGames as $relatedGame)
+                            <a class="platform-match-card" href="{{ route('games.show', ['game' => $relatedGame, 'game_filter' => $gameFilter, 'platform_filter' => $platformFilter]) }}">
+                                <span class="platform-badge {{ $relatedGame->platform_class }}"><i></i>{{ $relatedGame->platform_label }}</span>
+                                <strong>{{ $relatedGame->achievements_unlocked }}/{{ $relatedGame->achievements_total }}</strong>
+                                <small>{{ $relatedGame->completion_percent }}% complete</small>
+                            </a>
+                        @endforeach
+                    </section>
+                @endif
 
                 <section class="hunt-tools">
                     <article class="hunt-card game-notes">
@@ -455,6 +560,14 @@
                                         <option value="{{ $key }}" @selected(old('difficulty', $currentGame->huntSetting?->difficulty) === $key)>{{ $label }}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="quick-tags" aria-label="Quick tags">
+                                @foreach (['DLC', 'Co-op', 'Online', 'Missable', 'Grind', 'Buggy', 'Collectibles'] as $tag)
+                                    <label>
+                                        <input type="checkbox" name="tag_presets[]" value="{{ $tag }}" @checked(str_contains(strtolower((string) $currentGame->huntSetting?->tags), strtolower($tag)))>
+                                        <span>{{ $tag }}</span>
+                                    </label>
+                                @endforeach
                             </div>
                             <label class="archive-check">
                                 <input type="checkbox" name="archived" value="1" @checked($currentGame->huntSetting?->archived)>
@@ -480,8 +593,48 @@
                     </article>
                 </section>
 
-                @if ($currentGame->platform_key === \App\Models\SteamGame::PLATFORM_STEAM)
                 <section class="compare-panel" id="friend-compare">
+                    <div class="tool-heading">
+                        <h3>Compare With Tracker Users</h3>
+                        @if (! empty($trackerComparison))
+                            <span class="soft-label">{{ $trackerComparison['user']->name }}</span>
+                        @endif
+                    </div>
+                    <form method="GET" action="{{ route('games.show', $currentGame) }}" class="compare-form">
+                        <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
+                        <input type="hidden" name="platform_filter" value="{{ $platformFilter }}">
+                        <select name="compare_user_id">
+                            <option value="">Choose a tracker user</option>
+                            @foreach ($trackerCompareUsers as $trackerUser)
+                                <option value="{{ $trackerUser->id }}" @selected($trackerCompareId === $trackerUser->id)>{{ $trackerUser->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit">Compare</button>
+                    </form>
+                    @if (! empty($trackerComparison))
+                        <div class="compare-summary">
+                            <div><strong>{{ $trackerComparison['stats']['you'] }}</strong><span>You</span></div>
+                            <div><strong>{{ $trackerComparison['stats']['friend'] }}</strong><span>{{ $trackerComparison['user']->name }}</span></div>
+                            <div><strong>{{ $trackerComparison['stats']['both_missing'] }}</strong><span>Both missing</span></div>
+                            <div><strong>{{ $trackerComparison['stats']['only_you'] }}</strong><span>Only you</span></div>
+                            <div><strong>{{ $trackerComparison['stats']['only_friend'] }}</strong><span>Only them</span></div>
+                        </div>
+                        <div class="compare-grid">
+                            @foreach ($trackerComparison['rows'] as $row)
+                                <div>
+                                    <strong>{{ $row['name'] }}</strong>
+                                    <span class="{{ $row['you'] ? 'yes' : 'no' }}">You {{ $row['you'] ? 'have' : 'need' }}</span>
+                                    <span class="{{ $row['friend'] ? 'yes' : 'no' }}">They {{ $row['friend'] ? 'have' : 'need' }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @elseif ($trackerCompareUsers->isEmpty())
+                        <p>No tracker users have this exact {{ $currentGame->platform_label }} game synced yet.</p>
+                    @endif
+                </section>
+
+                @if ($currentGame->platform_key === \App\Models\SteamGame::PLATFORM_STEAM)
+                <section class="compare-panel">
                     <div class="tool-heading">
                         <h3>Compare With A Tracker Friend</h3>
                         @if ($compareProfile)
@@ -552,6 +705,7 @@
                             <div class="achievement-copy">
                                 <div class="achievement-title-row">
                                     <h3>{{ $masked ? 'Secret achievement' : $achievement->name }}</h3>
+                                    <span class="source-pill {{ $currentGame->platform_class }}">{{ $currentGame->platform_label }}</span>
                                     @if ($achievement->hidden)
                                         <span class="secret-pill">Secret</span>
                                     @endif
