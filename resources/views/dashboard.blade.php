@@ -35,7 +35,7 @@
                     <span>{{ $platformCounts['all'] }} games</span>
                 </div>
 
-                <details>
+                <details open>
                     <summary>
                         <span class="platform-badge platform-steam"><i></i>Steam</span>
                         <strong>{{ $platformCounts[\App\Models\SteamGame::PLATFORM_STEAM] ?? 0 }}</strong>
@@ -132,24 +132,22 @@
                 </details>
             </section>
 
-            <div class="game-filters" aria-label="Game filters">
-                <a class="{{ $mode === 'overview' ? 'active' : '' }}" href="{{ route('dashboard', ['platform_filter' => $platformFilter]) }}">
-                    <span>Dashboard</span>
-                    <strong>{{ $overview['completion'] }}%</strong>
-                </a>
-                @foreach ([
-                    'all' => 'All',
-                    'in_progress' => 'In progress',
-                    'completed' => 'Completed',
-                    'unchecked' => 'Unchecked',
-                    'archived' => 'Archived',
-                ] as $key => $label)
-                    <a class="{{ $gameFilter === $key ? 'active' : '' }}" href="{{ route('dashboard', ['game_filter' => $key, 'platform_filter' => $platformFilter]) }}">
-                        <span>{{ $label }}</span>
-                        <strong>{{ $gameCounts[$key] }}</strong>
-                    </a>
-                @endforeach
-            </div>
+            <form method="GET" action="{{ route('dashboard') }}" class="platform-select-form">
+                <input type="hidden" name="platform_filter" value="{{ $platformFilter }}">
+                <label for="game-filter">Status</label>
+                <select id="game-filter" name="game_filter" onchange="this.form.submit()">
+                    @foreach ([
+                        'all' => 'All',
+                        'in_progress' => 'In progress',
+                        'completed' => 'Completed',
+                        'unchecked' => 'Unchecked',
+                        'archived' => 'Archived',
+                    ] as $key => $label)
+                        <option value="{{ $key }}" @selected($gameFilter === $key)>{{ $label }} ({{ $gameCounts[$key] }})</option>
+                    @endforeach
+                </select>
+                <noscript><button type="submit">Apply</button></noscript>
+            </form>
 
             <form method="GET" action="{{ route('dashboard') }}" class="platform-select-form">
                 <input type="hidden" name="game_filter" value="{{ $gameFilter }}">
