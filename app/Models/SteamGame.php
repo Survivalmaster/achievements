@@ -29,12 +29,12 @@ class SteamGame extends Model
 {
     public const PLATFORM_STEAM = 'steam';
     public const PLATFORM_PSN = 'psn';
-    public const PLATFORM_EPIC = 'epic';
+    public const PLATFORM_XBOX = 'xbox';
 
     public const PLATFORMS = [
         self::PLATFORM_STEAM => 'Steam',
         self::PLATFORM_PSN => 'PSN',
-        self::PLATFORM_EPIC => 'Epic',
+        self::PLATFORM_XBOX => 'Xbox',
     ];
 
     protected function casts(): array
@@ -132,6 +132,10 @@ class SteamGame extends Model
             return 'https://www.playstation.com/';
         }
 
+        if ($this->platform_key === self::PLATFORM_XBOX) {
+            return 'https://www.xbox.com/';
+        }
+
         return "https://store.steampowered.com/app/{$this->appid}";
     }
 
@@ -141,6 +145,10 @@ class SteamGame extends Model
             return 'https://www.playstation.com/support/games/';
         }
 
+        if ($this->platform_key === self::PLATFORM_XBOX) {
+            return 'https://www.trueachievements.com/';
+        }
+
         return "https://steamcommunity.com/app/{$this->appid}/guides/";
     }
 
@@ -148,6 +156,10 @@ class SteamGame extends Model
     {
         if ($this->platform_key === self::PLATFORM_PSN) {
             return 'https://www.playstation.com/playstation-network/';
+        }
+
+        if ($this->platform_key === self::PLATFORM_XBOX) {
+            return 'https://www.xbox.com/play';
         }
 
         return "https://steamcommunity.com/stats/{$this->appid}/achievements/";

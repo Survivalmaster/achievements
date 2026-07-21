@@ -360,30 +360,8 @@ a {
     align-items: center;
 }
 
-.platform-sync-block {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: .45rem;
-    align-items: center;
-    margin-bottom: .5rem;
-}
-
-.platform-sync-block > a {
-    border: 1px solid var(--line);
-    border-radius: .38rem;
-    color: var(--soft);
-    font-size: .74rem;
-    padding: .48rem .55rem;
-    text-align: center;
-    text-decoration: none;
-}
-
-.platform-sync-block .platform-mini-form {
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.platform-link-card input {
+.platform-link-card input,
+.platform-link-card select {
     min-width: 0;
     border: 1px solid var(--line);
     border-radius: .38rem;
@@ -397,8 +375,14 @@ a {
     opacity: .7;
 }
 
-.platform-link-card input:focus {
+.platform-link-card input:focus,
+.platform-link-card select:focus {
     border-color: rgba(95, 212, 255, .65);
+}
+
+.platform-link-card input[type="file"] {
+    color: var(--muted);
+    font-size: .72rem;
 }
 
 .platform-link-card button {
@@ -536,15 +520,15 @@ a {
     box-shadow: 0 0 .45rem rgba(88, 130, 255, .38);
 }
 
-.platform-epic {
-    border-color: rgba(238, 244, 251, .32);
-    background: rgba(238, 244, 251, .08);
-    color: #eef4fb;
+.platform-xbox {
+    border-color: rgba(75, 209, 143, .42);
+    background: rgba(75, 209, 143, .12);
+    color: #ddffed;
 }
 
-.platform-epic i {
-    background: linear-gradient(135deg, #eef4fb, #8d9aaa 58%, #111820);
-    box-shadow: 0 0 .42rem rgba(238, 244, 251, .24);
+.platform-xbox i {
+    background: linear-gradient(135deg, #f0fff7, #4bd18f 58%, #0f3d24);
+    box-shadow: 0 0 .42rem rgba(75, 209, 143, .34);
 }
 
 .platform-all i {

@@ -79,25 +79,17 @@
 
             <section class="platform-link-card compact">
                 <div class="tool-heading">
-                    <h3>Epic Games</h3>
-                </div>
-                <div class="platform-sync-block">
-                    <span class="platform-badge platform-epic"><i></i>Epic</span>
-                    @if ($epicAccount)
-                        <form method="POST" action="{{ route('epic.sync') }}" class="platform-mini-form">
-                            @csrf
-                            <input value="{{ $epicAccount->display_name }}" disabled>
-                            <button type="submit">Sync</button>
-                        </form>
-                    @else
-                        <a href="{{ $epicAuthUrl }}" target="_blank" rel="noreferrer">Get code</a>
-                        <form method="POST" action="{{ route('epic.link') }}" class="platform-mini-form">
-                            @csrf
-                            <input name="authorization_code" placeholder="Epic auth code">
-                            <button type="submit">Link</button>
-                        </form>
+                    <h3>Xbox</h3>
+                    @if ($xboxAccount)
+                        <span class="platform-badge platform-xbox"><i></i>Linked</span>
                     @endif
                 </div>
+                <form method="POST" action="{{ route('xbox.link') }}" class="platform-mini-form">
+                    @csrf
+                    <input name="gamertag" value="{{ $xboxAccount?->display_name }}" placeholder="Xbox gamertag" autocomplete="off">
+                    <button type="submit">{{ $xboxAccount ? 'Save' : 'Link' }}</button>
+                </form>
+                <small>Xbox sync is staged for the Microsoft OAuth integration.</small>
             </section>
 
             <div class="game-filters" aria-label="Game filters">

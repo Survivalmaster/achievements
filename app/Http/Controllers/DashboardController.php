@@ -7,7 +7,6 @@ use App\Models\SteamAchievement;
 use App\Models\SteamGame;
 use App\Models\TrackerSetting;
 use App\Models\User;
-use App\Services\EpicGamesClient;
 use App\Models\UserPlatformAccount;
 use App\Services\PsnTrophyClient;
 use App\Services\SteamAchievementClient;
@@ -143,9 +142,13 @@ class DashboardController extends Controller
                     ->orWhereHas('huntSetting', fn ($setting) => $setting->where('archived', false));
             });
 
+        if ($supportsPlatform) {
+            $baseGamesQuery->whereIn('platform', array_keys(SteamGame::PLATFORMS));
+        }
+
         if ($supportsPlatform && $platformFilter !== 'all') {
             $baseGamesQuery->where('platform', $platformFilter);
-        } elseif (! $supportsPlatform && $platformFilter === SteamGame::PLATFORM_PSN) {
+        } elseif (! $supportsPlatform && $platformFilter !== SteamGame::PLATFORM_STEAM && $platformFilter !== 'all') {
             $baseGamesQuery->whereRaw('1 = 0');
         }
 
@@ -162,8 +165,7 @@ class DashboardController extends Controller
             'unchecked' => (clone $baseGamesQuery)
                 ->whereNull('achievements_synced_at')
                 ->count(),
-            'archived' => SteamGame::query()
-                ->where('user_id', Auth::id())
+            'archived' => $this->supportedGamesQuery()
                 ->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->count(),
         ];
@@ -179,6 +181,10 @@ class DashboardController extends Controller
                     ->orWhereHas('huntSetting', fn ($setting) => $setting->where('archived', false));
             });
 
+        if ($supportsPlatform) {
+            $platformCountsQuery->whereIn('platform', array_keys(SteamGame::PLATFORMS));
+        }
+
         $platformCounts = ['all' => (clone $platformCountsQuery)->count()];
 
         foreach (SteamGame::PLATFORMS as $key => $label) {
@@ -190,8 +196,12 @@ class DashboardController extends Controller
         }
 
         $gamesQuery = $gameFilter === 'archived'
-            ? SteamGame::query()->where('user_id', Auth::id())->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
+            ? $this->supportedGamesQuery()->with('huntSetting')->whereHas('huntSetting', fn ($setting) => $setting->where('archived', true))
             : clone $baseGamesQuery;
+
+        if ($gameFilter === 'archived' && $supportsPlatform) {
+            $gamesQuery->whereIn('platform', array_keys(SteamGame::PLATFORMS));
+        }
 
         if ($gameFilter === 'archived' && $supportsPlatform && $platformFilter !== 'all') {
             $gamesQuery->where('platform', $platformFilter);
@@ -249,8 +259,7 @@ class DashboardController extends Controller
             'friendActivity' => $this->friendActivity(),
             'staleGames' => $this->staleGames(),
             'psnAccount' => $this->psnAccount(),
-            'epicAccount' => $this->epicAccount(),
-            'epicAuthUrl' => app(EpicGamesClient::class)->authUrl(),
+            'xboxAccount' => $this->xboxAccount(),
         ];
     }
 
@@ -280,30 +289,26 @@ class DashboardController extends Controller
         return back()->with('status', "Synced {$count} PlayStation trophy titles.");
     }
 
-    public function linkEpic(Request $request, EpicGamesClient $epic): RedirectResponse
+    public function linkXbox(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'authorization_code' => ['required', 'string', 'max:500'],
+            'gamertag' => ['required', 'string', 'min:2', 'max:32'],
         ]);
 
-        try {
-            $epic->link($request->user(), $data['authorization_code']);
-        } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
-        }
+        UserPlatformAccount::query()->updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'platform' => SteamGame::PLATFORM_XBOX,
+            ],
+            [
+                'account_id' => $data['gamertag'],
+                'display_name' => $data['gamertag'],
+                'linked_at' => now(),
+                'meta' => ['sync_status' => 'oauth_required'],
+            ],
+        );
 
-        return back()->with('status', 'Epic linked. Sync Epic to pull your library.');
-    }
-
-    public function syncEpicLibrary(Request $request, EpicGamesClient $epic): RedirectResponse
-    {
-        try {
-            $count = $epic->syncLibrary($request->user());
-        } catch (Throwable $exception) {
-            return back()->with('error', $this->message($exception));
-        }
-
-        return back()->with('status', "Synced {$count} Epic library items.");
+        return back()->with('status', 'Xbox gamertag saved. Full Xbox sync needs the Microsoft OAuth bridge next.');
     }
 
     public function syncLibrary(SteamAchievementClient $steam): RedirectResponse
@@ -449,7 +454,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, EpicGamesClient $epic): RedirectResponse
+    public function refreshGame(SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
     {
         $this->authorizeGame($game);
         $beforeUnlocked = $game->achievements_unlocked;
@@ -459,11 +464,11 @@ class DashboardController extends Controller
         try {
             if ($game->platform_key === SteamGame::PLATFORM_PSN) {
                 $psn->syncGame($game);
-            } elseif ($game->platform_key === SteamGame::PLATFORM_EPIC) {
-                $epic->syncGame($game);
-            } else {
+            } elseif ($game->platform_key === SteamGame::PLATFORM_STEAM) {
                 $steam->syncLibrary();
                 $steam->syncAchievements($game);
+            } else {
+                throw new RuntimeException("{$game->platform_label} sync is not wired up yet.");
             }
         } catch (Throwable $exception) {
             return back()->with('error', $this->message($exception));
@@ -499,7 +504,7 @@ class DashboardController extends Controller
         return back()->with('status', "Tonight's Hunt targets marked.");
     }
 
-    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn, EpicGamesClient $epic): RedirectResponse
+    public function setCurrent(Request $request, SteamGame $game, SteamAchievementClient $steam, PsnTrophyClient $psn): RedirectResponse
     {
         $this->authorizeGame($game);
 
@@ -659,12 +664,11 @@ class DashboardController extends Controller
             ->first();
     }
 
-    private function epicAccount(): ?UserPlatformAccount
+    private function xboxAccount(): ?UserPlatformAccount
     {
         return UserPlatformAccount::query()
             ->where('user_id', Auth::id())
-            ->where('platform', SteamGame::PLATFORM_EPIC)
-            ->whereNotNull('access_token')
+            ->where('platform', SteamGame::PLATFORM_XBOX)
             ->first();
     }
 
@@ -679,10 +683,31 @@ class DashboardController extends Controller
         return $query;
     }
 
+    private function supportedGamesQuery()
+    {
+        $query = SteamGame::query()->where('user_id', Auth::id());
+
+        if (Schema::hasColumn('steam_games', 'platform')) {
+            $query->whereIn('platform', array_keys(SteamGame::PLATFORMS));
+        }
+
+        return $query;
+    }
+
+    private function supportedGameRelation($query)
+    {
+        $query->where('user_id', Auth::id());
+
+        if (Schema::hasColumn('steam_games', 'platform')) {
+            $query->whereIn('platform', array_keys(SteamGame::PLATFORMS));
+        }
+
+        return $query;
+    }
+
     private function roadmapGames()
     {
-        return SteamGame::query()
-            ->where('user_id', Auth::id())
+        return $this->supportedGamesQuery()
             ->with('huntSetting')
             ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
             ->where('achievements_total', '>', 0)
@@ -702,6 +727,7 @@ class DashboardController extends Controller
             ->whereHas('game', function ($query): void {
                 $query
                     ->where('user_id', Auth::id())
+                    ->when(Schema::hasColumn('steam_games', 'platform'), fn ($query) => $query->whereIn('platform', array_keys(SteamGame::PLATFORMS)))
                     ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
             })
             ->orderBy('global_percent')
@@ -717,6 +743,7 @@ class DashboardController extends Controller
             ->whereHas('game', function ($query): void {
                 $query
                     ->where('user_id', Auth::id())
+                    ->when(Schema::hasColumn('steam_games', 'platform'), fn ($query) => $query->whereIn('platform', array_keys(SteamGame::PLATFORMS)))
                     ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
             })
             ->orderBy('achieved')
@@ -734,6 +761,7 @@ class DashboardController extends Controller
             ->whereHas('game', function ($query): void {
                 $query
                     ->where('user_id', Auth::id())
+                    ->when(Schema::hasColumn('steam_games', 'platform'), fn ($query) => $query->whereIn('platform', array_keys(SteamGame::PLATFORMS)))
                     ->where('achievements_total', '>', 0)
                     ->whereColumn('achievements_unlocked', '<', 'achievements_total')
                     ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true));
@@ -778,8 +806,7 @@ class DashboardController extends Controller
 
     private function overviewStats(): array
     {
-        $activeGames = SteamGame::query()
-            ->where('user_id', Auth::id())
+        $activeGames = $this->supportedGamesQuery()
             ->where(function ($query): void {
                 $query->whereNull('achievements_synced_at')
                     ->orWhere('achievements_total', '>', 0);
@@ -824,23 +851,21 @@ class DashboardController extends Controller
             'unlocked_achievements' => $unlockedAchievements,
             'locked_achievements' => max(0, $totalAchievements - $unlockedAchievements),
             'completion' => $completion,
-            'rare_missing' => SteamAchievement::query()->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))->where('achieved', false)->where('global_percent', '>', 0)->where('global_percent', '<=', 10)->count(),
-            'secret_locked' => SteamAchievement::query()->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))->where('achieved', false)->where('hidden', true)->count(),
+            'rare_missing' => SteamAchievement::query()->whereHas('game', fn ($query) => $this->supportedGameRelation($query))->where('achieved', false)->where('global_percent', '>', 0)->where('global_percent', '<=', 10)->count(),
+            'secret_locked' => SteamAchievement::query()->whereHas('game', fn ($query) => $this->supportedGameRelation($query))->where('achieved', false)->where('hidden', true)->count(),
             'targets' => AchievementHuntSetting::query()
                 ->where('status', 'target')
-                ->whereHas('achievement.game', fn ($query) => $query->where('user_id', Auth::id()))
+                ->whereHas('achievement.game', fn ($query) => $this->supportedGameRelation($query))
                 ->count(),
             'bands' => $bands,
             'max_band' => $maxBand,
-            'top_playtime' => SteamGame::query()
-                ->where('user_id', Auth::id())
+            'top_playtime' => $this->supportedGamesQuery()
                 ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->where('playtime_forever', '>', 0)
                 ->orderByDesc('playtime_forever')
                 ->limit(5)
                 ->get(),
-            'recently_played' => SteamGame::query()
-                ->where('user_id', Auth::id())
+            'recently_played' => $this->supportedGamesQuery()
                 ->whereDoesntHave('huntSetting', fn ($setting) => $setting->where('archived', true))
                 ->whereNotNull('last_played_at')
                 ->orderByDesc('last_played_at')
@@ -853,7 +878,7 @@ class DashboardController extends Controller
     {
         return SteamAchievement::query()
             ->with('game')
-            ->whereHas('game', fn ($query) => $query->where('user_id', Auth::id()))
+            ->whereHas('game', fn ($query) => $this->supportedGameRelation($query))
             ->where('achieved', true)
             ->where('unlock_time', '>=', now()->subDay()->timestamp)
             ->orderByDesc('unlock_time')
@@ -867,7 +892,9 @@ class DashboardController extends Controller
             ->with(['game.user'])
             ->where('achieved', true)
             ->where('unlock_time', '>=', now()->subDay()->timestamp)
-            ->whereHas('game', fn ($query) => $query->where('user_id', '!=', Auth::id()))
+            ->whereHas('game', fn ($query) => $query
+                ->where('user_id', '!=', Auth::id())
+                ->when(Schema::hasColumn('steam_games', 'platform'), fn ($query) => $query->whereIn('platform', array_keys(SteamGame::PLATFORMS))))
             ->orderByDesc('unlock_time')
             ->limit(8)
             ->get();
@@ -875,8 +902,7 @@ class DashboardController extends Controller
 
     private function staleGames()
     {
-        return SteamGame::query()
-            ->where('user_id', Auth::id())
+        return $this->supportedGamesQuery()
             ->where('achievements_total', '>', 0)
             ->where(function ($query): void {
                 $query->whereNull('achievements_synced_at')
